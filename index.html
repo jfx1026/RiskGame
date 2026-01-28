@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Risk Game - Hexagonal Map Generator</title>
+    <title>Risk Game - Hexagonal Strategy</title>
     <style>
         * {
             box-sizing: border-box;
@@ -35,7 +35,9 @@
         .controls {
             display: flex;
             gap: 10px;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
         }
 
         button {
@@ -62,9 +64,61 @@
             outline-offset: 2px;
         }
 
+        button:disabled {
+            background: #3a3a5a;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
         .size-btn.active {
             background: #6a6aba;
             box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .end-turn-btn {
+            background: #2e7d32;
+            margin-left: 20px;
+        }
+
+        .end-turn-btn:hover {
+            background: #388e3c;
+        }
+
+        /* Turn Indicator */
+        .turn-indicator {
+            background: rgba(0, 0, 0, 0.4);
+            border: 3px solid #888;
+            border-radius: 8px;
+            padding: 12px 24px;
+            margin-bottom: 15px;
+            text-align: center;
+            min-width: 300px;
+            transition: border-color 0.3s;
+        }
+
+        .turn-indicator .turn-number {
+            color: #888;
+            font-size: 0.875rem;
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .turn-indicator .team-name {
+            font-size: 1.25rem;
+            font-weight: bold;
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .turn-indicator .phase-info {
+            color: #aaa;
+            font-size: 0.875rem;
+        }
+
+        .turn-indicator .game-over {
+            color: #ff6b6b;
+            font-size: 1.5rem;
+            font-weight: bold;
         }
 
         #map-container {
@@ -114,6 +168,40 @@
             stroke-width: 4;
         }
 
+        /* Valid attack target highlighting */
+        .territory-group.valid-target .territory-border {
+            stroke: #ff6b6b;
+            stroke-width: 4;
+            animation: pulse-border 1s ease-in-out infinite;
+        }
+
+        .territory-group.valid-target .hex {
+            animation: pulse-brightness 1s ease-in-out infinite;
+        }
+
+        @keyframes pulse-border {
+            0%, 100% { stroke-width: 4; stroke: #ff6b6b; }
+            50% { stroke-width: 6; stroke: #ff8888; }
+        }
+
+        @keyframes pulse-brightness {
+            0%, 100% { filter: brightness(1.0); }
+            50% { filter: brightness(1.2); }
+        }
+
+        /* Combat flash animation */
+        .territory-group.combat-flash .hex {
+            animation: combat-flash 0.5s ease-out;
+        }
+
+        @keyframes combat-flash {
+            0% { filter: brightness(1.0); }
+            25% { filter: brightness(2.0); }
+            50% { filter: brightness(0.5); }
+            75% { filter: brightness(1.5); }
+            100% { filter: brightness(1.0); }
+        }
+
         /* Army dots styling */
         .army-dots {
             pointer-events: none;
@@ -145,6 +233,7 @@
             opacity: 0;
             transition: opacity 0.15s;
             z-index: 1000;
+            max-width: 200px;
         }
 
         #tooltip.visible {
@@ -158,17 +247,122 @@
             margin-top: 10px;
             text-align: center;
         }
+
+        /* Combat Log */
+        .combat-log {
+            margin-top: 15px;
+            max-width: 600px;
+            width: 100%;
+            max-height: 150px;
+            overflow-y: auto;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            padding: 10px;
+        }
+
+        .combat-log-entry {
+            color: #ccc;
+            font-size: 0.875rem;
+            padding: 4px 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            animation: slide-in 0.3s ease-out;
+        }
+
+        .combat-log-entry:first-child {
+            color: #fff;
+            font-weight: bold;
+        }
+
+        @keyframes slide-in {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Victory Overlay */
+        .victory-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            animation: fade-in 0.5s ease-out;
+        }
+
+        @keyframes fade-in {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .victory-content {
+            background: #1a1a2e;
+            border-radius: 16px;
+            padding: 40px 60px;
+            text-align: center;
+            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+            animation: pop-in 0.5s ease-out;
+        }
+
+        @keyframes pop-in {
+            from {
+                opacity: 0;
+                transform: scale(0.8);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .victory-content h2 {
+            font-size: 2.5rem;
+            margin-bottom: 15px;
+        }
+
+        .victory-content p {
+            color: #aaa;
+            font-size: 1.1rem;
+            margin-bottom: 25px;
+        }
+
+        .victory-content button {
+            background: #4a4a8a;
+            font-size: 1.1rem;
+            padding: 14px 40px;
+        }
+
+        /* Current player indicator on territories */
+        .territory-group.current-player .territory-border {
+            stroke-dasharray: 8, 4;
+        }
     </style>
 </head>
 <body>
     <header>
-        <h1>Risk Game Map Generator</h1>
+        <h1>Risk Game</h1>
     </header>
 
     <div class="controls">
         <button id="small-map-btn" class="size-btn" aria-label="Generate a small map">Small</button>
         <button id="medium-map-btn" class="size-btn" aria-label="Generate a medium map">Medium</button>
         <button id="large-map-btn" class="size-btn" aria-label="Generate a large map">Large</button>
+        <button id="end-turn-btn" class="end-turn-btn" aria-label="End your turn">End Turn</button>
+    </div>
+
+    <div id="turn-indicator" class="turn-indicator">
+        <span class="turn-number">Turn 1</span>
+        <span class="team-name">Loading...</span>
+        <span class="phase-info">Select a territory to attack from</span>
     </div>
 
     <div id="map-container">
@@ -176,6 +370,8 @@
     </div>
 
     <div class="stats" id="stats"></div>
+
+    <div id="combat-log" class="combat-log"></div>
 
     <div id="tooltip" role="tooltip"></div>
 

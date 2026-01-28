@@ -4,6 +4,8 @@
 
 import { Territory, TerritoryType } from './territory.js';
 import { TERRITORY_COLORS } from './colors.js';
+import { GeneratedMap } from './mapGenerator.js';
+import { CombatResult, executeAttack, canAttack, getValidAttackTargets } from './combat.js';
 
 export interface Team {
     id: number;
@@ -12,10 +14,17 @@ export interface Team {
     territories: number[];  // Territory IDs owned by this team
 }
 
+export type GamePhase = 'select' | 'attack' | 'resupply' | 'gameOver';
+
 export interface GameState {
     teams: Team[];
     territories: Territory[];
     currentTeamIndex: number;
+    selectedTerritory: number | null;  // Source territory for attack
+    phase: GamePhase;
+    turnNumber: number;
+    lastCombatResult: CombatResult | null;
+    winner: number | null;  // Team ID of winner, if game is over
 }
 
 // Custom colorblind-friendly palette
@@ -204,4 +213,300 @@ export function initializeTerritories(
     assignTerritoryTypes(territories);
     assignInitialArmies(territories, teams, armiesPerTeam);
     assignArmyDisplayHexes(territories);
+}
+
+// ============================================================
+// TURN-BASED GAME STATE MANAGEMENT
+// ============================================================
+
+/**
+ * Start a new game with the given map and teams
+ */
+export function startGame(map: GeneratedMap, teams: Team[]): GameState {
+    return {
+        teams,
+        territories: map.territories,
+        currentTeamIndex: 0,
+        selectedTerritory: null,
+        phase: 'select',
+        turnNumber: 1,
+        lastCombatResult: null,
+        winner: null,
+    };
+}
+
+/**
+ * Get the current team
+ */
+export function getCurrentTeam(state: GameState): Team {
+    return state.teams[state.currentTeamIndex];
+}
+
+/**
+ * Check if a territory is owned by the current team
+ */
+export function isOwnedByCurrentTeam(state: GameState, territoryId: number): boolean {
+    const territory = state.territories.find(t => t.id === territoryId);
+    return territory?.owner === state.currentTeamIndex;
+}
+
+/**
+ * Select a territory as source for attack
+ * Returns new state with the selection
+ */
+export function selectTerritory(state: GameState, territoryId: number): GameState {
+    // Can only select during 'select' or 'attack' phase (allow switching selection)
+    if (state.phase !== 'select' && state.phase !== 'attack') {
+        return state;
+    }
+
+    const territory = state.territories.find(t => t.id === territoryId);
+    if (!territory) {
+        return state;
+    }
+
+    // Must be owned by current team
+    if (territory.owner !== state.currentTeamIndex) {
+        return state;
+    }
+
+    // Must have valid attack targets
+    const validTargets = getValidAttackTargets(territory, state.territories);
+    if (validTargets.length === 0) {
+        // Territory can't attack anyone - just select for visual feedback
+        return {
+            ...state,
+            selectedTerritory: territoryId,
+        };
+    }
+
+    return {
+        ...state,
+        selectedTerritory: territoryId,
+        phase: 'attack',
+    };
+}
+
+/**
+ * Deselect the current territory
+ */
+export function deselectTerritory(state: GameState): GameState {
+    return {
+        ...state,
+        selectedTerritory: null,
+        phase: 'select',
+    };
+}
+
+/**
+ * Attempt an attack from the selected territory to the target
+ * Returns the new game state after combat
+ */
+export function attemptAttack(state: GameState, targetId: number): GameState {
+    // Must have a selected territory
+    if (state.selectedTerritory === null) {
+        return state;
+    }
+
+    const source = state.territories.find(t => t.id === state.selectedTerritory);
+    const target = state.territories.find(t => t.id === targetId);
+
+    if (!source || !target) {
+        return state;
+    }
+
+    // Validate the attack
+    if (!canAttack(source, target)) {
+        return state;
+    }
+
+    // Execute the attack
+    const combatResult = executeAttack(source, target, state.teams);
+
+    // Check for victory
+    const winner = checkVictory(state);
+
+    // Return to select phase after attack
+    return {
+        ...state,
+        selectedTerritory: null,
+        phase: winner !== null ? 'gameOver' : 'select',
+        lastCombatResult: combatResult,
+        winner,
+    };
+}
+
+/**
+ * End the current player's turn
+ * Applies resupply and moves to next player
+ */
+export function endTurn(state: GameState): GameState {
+    // Skip if game is over
+    if (state.phase === 'gameOver') {
+        return state;
+    }
+
+    // Apply resupply
+    let newState = applyResupply(state);
+
+    // Move to next team that still has territories
+    let nextTeamIndex = (state.currentTeamIndex + 1) % state.teams.length;
+    let attempts = 0;
+
+    while (attempts < state.teams.length) {
+        if (state.teams[nextTeamIndex].territories.length > 0) {
+            break;
+        }
+        nextTeamIndex = (nextTeamIndex + 1) % state.teams.length;
+        attempts++;
+    }
+
+    // Check if only one team remains
+    const winner = checkVictory(newState);
+
+    return {
+        ...newState,
+        currentTeamIndex: nextTeamIndex,
+        selectedTerritory: null,
+        phase: winner !== null ? 'gameOver' : 'select',
+        turnNumber: state.turnNumber + 1,
+        lastCombatResult: null,
+        winner,
+    };
+}
+
+/**
+ * Calculate resupply amount for the current team
+ * Based on the size of their largest contiguous territory group
+ */
+export function calculateResupply(state: GameState): number {
+    const currentTeam = getCurrentTeam(state);
+    return findLargestContiguousGroup(state.territories, currentTeam.id);
+}
+
+/**
+ * Find the size of the largest contiguous group of territories for a team
+ * Uses BFS to find connected components
+ */
+export function findLargestContiguousGroup(territories: Territory[], teamId: number): number {
+    const teamTerritories = territories.filter(t => t.owner === teamId);
+    const visited = new Set<number>();
+    let largestGroup = 0;
+
+    for (const territory of teamTerritories) {
+        if (visited.has(territory.id)) continue;
+
+        // BFS to find the size of this connected component
+        const queue: number[] = [territory.id];
+        let groupSize = 0;
+
+        while (queue.length > 0) {
+            const currentId = queue.shift()!;
+            if (visited.has(currentId)) continue;
+            visited.add(currentId);
+
+            const current = territories.find(t => t.id === currentId);
+            if (!current || current.owner !== teamId) continue;
+
+            groupSize++;
+
+            // Add unvisited neighbors owned by same team
+            for (const neighborId of current.neighbors) {
+                if (!visited.has(neighborId)) {
+                    const neighbor = territories.find(t => t.id === neighborId);
+                    if (neighbor && neighbor.owner === teamId) {
+                        queue.push(neighborId);
+                    }
+                }
+            }
+        }
+
+        if (groupSize > largestGroup) {
+            largestGroup = groupSize;
+        }
+    }
+
+    return largestGroup;
+}
+
+/**
+ * Apply resupply to the current team
+ * New armies are distributed randomly across owned territories
+ */
+export function applyResupply(state: GameState): GameState {
+    const resupplyAmount = calculateResupply(state);
+    const currentTeam = getCurrentTeam(state);
+    const teamTerritories = state.territories.filter(t => t.owner === currentTeam.id);
+
+    if (teamTerritories.length === 0 || resupplyAmount === 0) {
+        return state;
+    }
+
+    // Create a copy of territories to modify
+    const newTerritories = state.territories.map(t => ({ ...t }));
+    const teamTerritoryIds = new Set(currentTeam.territories);
+
+    let remaining = resupplyAmount;
+    while (remaining > 0) {
+        // Get eligible territories (can accept more armies)
+        const eligible = newTerritories.filter(t => {
+            if (!teamTerritoryIds.has(t.id)) return false;
+            const maxArmies = t.type === 'big' ? 10 : 7;
+            return t.armies < maxArmies;
+        });
+
+        if (eligible.length === 0) break;
+
+        // Distribute to a random eligible territory
+        const randomIndex = Math.floor(Math.random() * eligible.length);
+        eligible[randomIndex].armies++;
+        remaining--;
+    }
+
+    return {
+        ...state,
+        territories: newTerritories,
+    };
+}
+
+/**
+ * Check if a team has won (owns all territories)
+ * Returns the winning team ID, or null if no winner yet
+ */
+export function checkVictory(state: GameState): number | null {
+    // Count territories per team
+    const territoryCounts = new Map<number, number>();
+
+    for (const territory of state.territories) {
+        if (territory.owner !== undefined) {
+            const count = territoryCounts.get(territory.owner) || 0;
+            territoryCounts.set(territory.owner, count + 1);
+        }
+    }
+
+    // Check if only one team has territories
+    const teamsWithTerritories = Array.from(territoryCounts.entries())
+        .filter(([_, count]) => count > 0);
+
+    if (teamsWithTerritories.length === 1) {
+        return teamsWithTerritories[0][0];
+    }
+
+    return null;
+}
+
+/**
+ * Get valid attack targets for the currently selected territory
+ */
+export function getSelectedTerritoryTargets(state: GameState): Territory[] {
+    if (state.selectedTerritory === null) {
+        return [];
+    }
+
+    const source = state.territories.find(t => t.id === state.selectedTerritory);
+    if (!source) {
+        return [];
+    }
+
+    return getValidAttackTargets(source, state.territories);
 }

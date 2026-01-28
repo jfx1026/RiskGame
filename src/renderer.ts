@@ -6,6 +6,7 @@
 import { Hex, hexToPixel, hexCorners, cornersToSvgPoints, getHexBounds, HEX_SIZE, parseHexKey, hexKey, hexNeighbors } from './hex.js';
 import { Territory, getTerritoryHexes } from './territory.js';
 import { GeneratedMap } from './mapGenerator.js';
+import { CombatResult } from './combat.js';
 
 interface Point {
     x: number;
@@ -328,11 +329,12 @@ export function addClickHandlers(
         });
     });
 
-    // Click on empty space or empty hex deselects
+    // Click on empty space or empty hex deselects and clears highlights
     svgElement.addEventListener('click', (event) => {
         const target = event.target as Element;
         if (target === svgElement || target.classList.contains('hex-empty')) {
             deselectAll(svgElement);
+            clearHighlights(svgElement);
         }
     });
 }
@@ -428,4 +430,197 @@ export function highlightTerritory(
  */
 function createSvgElement(tagName: string): SVGElement {
     return document.createElementNS('http://www.w3.org/2000/svg', tagName);
+}
+
+// ============================================================
+// COMBAT SYSTEM RENDERING
+// ============================================================
+
+/**
+ * Highlight valid attack targets for a selected territory
+ */
+export function highlightValidTargets(
+    svgElement: SVGSVGElement,
+    targetIds: number[]
+): void {
+    // First clear any existing highlights
+    clearHighlights(svgElement);
+
+    // Add 'valid-target' class to target territories
+    for (const targetId of targetIds) {
+        const group = svgElement.querySelector(
+            `.territory-group[data-territory-id="${targetId}"]`
+        );
+        if (group) {
+            group.classList.add('valid-target');
+        }
+    }
+}
+
+/**
+ * Clear all target highlights
+ */
+export function clearHighlights(svgElement: SVGSVGElement): void {
+    const groups = svgElement.querySelectorAll('.territory-group');
+    groups.forEach(group => {
+        group.classList.remove('valid-target');
+        group.classList.remove('combat-flash');
+    });
+}
+
+/**
+ * Show combat animation on territories
+ * Returns a promise that resolves when the animation is complete
+ */
+export function showCombatAnimation(
+    svgElement: SVGSVGElement,
+    result: CombatResult,
+    sourceId: number,
+    targetId: number
+): Promise<void> {
+    return new Promise(resolve => {
+        const sourceGroup = svgElement.querySelector(
+            `.territory-group[data-territory-id="${sourceId}"]`
+        );
+        const targetGroup = svgElement.querySelector(
+            `.territory-group[data-territory-id="${targetId}"]`
+        );
+
+        // Add combat animation class
+        if (sourceGroup) {
+            sourceGroup.classList.add('combat-flash');
+        }
+        if (targetGroup) {
+            targetGroup.classList.add('combat-flash');
+        }
+
+        // Remove classes after animation
+        setTimeout(() => {
+            if (sourceGroup) {
+                sourceGroup.classList.remove('combat-flash');
+            }
+            if (targetGroup) {
+                targetGroup.classList.remove('combat-flash');
+            }
+            resolve();
+        }, 500);
+    });
+}
+
+/**
+ * Update the display of a single territory (army count, color)
+ * Used after combat to reflect changes
+ */
+export function updateTerritoryDisplay(
+    svgElement: SVGSVGElement,
+    territory: Territory,
+    hexSize: number = HEX_SIZE
+): void {
+    const group = svgElement.querySelector(
+        `.territory-group[data-territory-id="${territory.id}"]`
+    ) as SVGGElement | null;
+
+    if (!group) return;
+
+    // Update hex colors
+    const hexElements = group.querySelectorAll('.hex');
+    hexElements.forEach(hex => {
+        hex.setAttribute('fill', territory.color);
+    });
+
+    // Update army dots
+    const existingArmyGroup = group.querySelector('.army-dots');
+    if (existingArmyGroup) {
+        group.removeChild(existingArmyGroup);
+    }
+
+    // Re-render army dots
+    if (territory.armyHex && territory.armies > 0) {
+        const armyGroup = renderArmyDotsForTerritory(territory, hexSize);
+        group.appendChild(armyGroup);
+    }
+
+    // Update ARIA label
+    group.setAttribute('aria-label', `${territory.name}, ${territory.hexes.size} hexes, ${territory.armies} armies`);
+}
+
+/**
+ * Render army dots for a territory (extracted for reuse)
+ */
+function renderArmyDotsForTerritory(territory: Territory, hexSize: number): SVGGElement {
+    const group = createSvgElement('g') as SVGGElement;
+    group.setAttribute('class', 'army-dots');
+
+    if (!territory.armyHex) return group;
+
+    const hex = parseHexKey(territory.armyHex);
+    const center = hexToPixel(hex, hexSize);
+    const armies = territory.armies;
+
+    // Dot configuration
+    const dotRadius = hexSize * 0.12;
+    const dotSpacing = dotRadius * 2.5;
+
+    // Arrange dots in rows (max 5 per row)
+    const dotsPerRow = 5;
+    const rows: number[] = [];
+    let remaining = armies;
+
+    while (remaining > 0) {
+        const dotsInThisRow = Math.min(remaining, dotsPerRow);
+        rows.push(dotsInThisRow);
+        remaining -= dotsInThisRow;
+    }
+
+    // Calculate total height to center vertically
+    const totalHeight = (rows.length - 1) * dotSpacing;
+    const startY = center.y - totalHeight / 2;
+
+    // Draw dots
+    for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+        const dotsInRow = rows[rowIndex];
+        const rowWidth = (dotsInRow - 1) * dotSpacing;
+        const startX = center.x - rowWidth / 2;
+        const y = startY + rowIndex * dotSpacing;
+
+        for (let dotIndex = 0; dotIndex < dotsInRow; dotIndex++) {
+            const x = startX + dotIndex * dotSpacing;
+
+            // Create dot with glow effect
+            const dot = createSvgElement('circle');
+            dot.setAttribute('class', 'army-dot');
+            dot.setAttribute('cx', String(x));
+            dot.setAttribute('cy', String(y));
+            dot.setAttribute('r', String(dotRadius));
+            dot.setAttribute('fill', '#000000');
+
+            group.appendChild(dot);
+        }
+    }
+
+    return group;
+}
+
+/**
+ * Mark a territory as belonging to the current player (visual indicator)
+ */
+export function markCurrentPlayerTerritories(
+    svgElement: SVGSVGElement,
+    territoryIds: number[]
+): void {
+    // Remove existing current-player markers
+    const groups = svgElement.querySelectorAll('.territory-group');
+    groups.forEach(group => {
+        group.classList.remove('current-player');
+    });
+
+    // Add current-player class to the current player's territories
+    for (const id of territoryIds) {
+        const group = svgElement.querySelector(
+            `.territory-group[data-territory-id="${id}"]`
+        );
+        if (group) {
+            group.classList.add('current-player');
+        }
+    }
 }
