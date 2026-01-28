@@ -69,7 +69,7 @@ function renderTerritory(territory, hexSize) {
     group.setAttribute('class', 'territory-group');
     group.setAttribute('data-territory-id', String(territory.id));
     group.setAttribute('role', 'group');
-    group.setAttribute('aria-label', `${territory.name}, ${territory.hexes.size} hexes`);
+    group.setAttribute('aria-label', `${territory.name}, ${territory.hexes.size} hexes, ${territory.armies} armies`);
     const hexes = getTerritoryHexes(territory);
     const hexKeySet = new Set(Array.from(territory.hexes));
     // Draw filled hexes (no stroke)
@@ -81,6 +81,58 @@ function renderTerritory(territory, hexSize) {
     const boundaryPath = createTerritoryBoundary(hexes, hexKeySet, hexSize);
     if (boundaryPath) {
         group.appendChild(boundaryPath);
+    }
+    // Draw army dots
+    if (territory.armyHex && territory.armies > 0) {
+        const armyGroup = renderArmyDots(territory, hexSize);
+        group.appendChild(armyGroup);
+    }
+    return group;
+}
+/**
+ * Render army dots for a territory
+ * Dots are arranged in rows, centered on the army display hex
+ */
+function renderArmyDots(territory, hexSize) {
+    const group = createSvgElement('g');
+    group.setAttribute('class', 'army-dots');
+    if (!territory.armyHex)
+        return group;
+    const hex = parseHexKey(territory.armyHex);
+    const center = hexToPixel(hex, hexSize);
+    const armies = territory.armies;
+    // Dot configuration
+    const dotRadius = hexSize * 0.12;
+    const dotSpacing = dotRadius * 2.5;
+    // Arrange dots in rows (max 5 per row)
+    const dotsPerRow = 5;
+    const rows = [];
+    let remaining = armies;
+    while (remaining > 0) {
+        const dotsInThisRow = Math.min(remaining, dotsPerRow);
+        rows.push(dotsInThisRow);
+        remaining -= dotsInThisRow;
+    }
+    // Calculate total height to center vertically
+    const totalHeight = (rows.length - 1) * dotSpacing;
+    const startY = center.y - totalHeight / 2;
+    // Draw dots
+    for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+        const dotsInRow = rows[rowIndex];
+        const rowWidth = (dotsInRow - 1) * dotSpacing;
+        const startX = center.x - rowWidth / 2;
+        const y = startY + rowIndex * dotSpacing;
+        for (let dotIndex = 0; dotIndex < dotsInRow; dotIndex++) {
+            const x = startX + dotIndex * dotSpacing;
+            // Create dot with glow effect
+            const dot = createSvgElement('circle');
+            dot.setAttribute('class', 'army-dot');
+            dot.setAttribute('cx', String(x));
+            dot.setAttribute('cy', String(y));
+            dot.setAttribute('r', String(dotRadius));
+            dot.setAttribute('fill', '#000000');
+            group.appendChild(dot);
+        }
     }
     return group;
 }

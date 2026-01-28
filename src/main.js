@@ -4,7 +4,7 @@
 import { generateMap } from './mapGenerator.js';
 import { renderMap, addClickHandlers, addHoverHandlers } from './renderer.js';
 import { getTerritoryStats } from './territory.js';
-import { createTeams, assignTerritoriesToTeams } from './game.js';
+import { createTeams, assignTerritoriesToTeams, initializeTerritories } from './game.js';
 // DOM Elements
 let svgElement;
 let statsElement;
@@ -24,6 +24,7 @@ const GAME_CONFIGS = {
             emptyTilePercent: 10,
         },
         teamCount: 4,
+        armiesPerTeam: 20,
     },
     medium: {
         map: {
@@ -35,6 +36,7 @@ const GAME_CONFIGS = {
             emptyTilePercent: 10,
         },
         teamCount: 5,
+        armiesPerTeam: 35,
     },
     large: {
         map: {
@@ -46,6 +48,7 @@ const GAME_CONFIGS = {
             emptyTilePercent: 10,
         },
         teamCount: 6,
+        armiesPerTeam: 50,
     },
 };
 /**
@@ -108,6 +111,8 @@ function generateAndRenderNewMap() {
     // Create teams and assign territories
     currentTeams = createTeams(gameConfig.teamCount);
     assignTerritoriesToTeams(currentMap.territories, currentTeams);
+    // Initialize territory types and armies
+    initializeTerritories(currentMap.territories, currentTeams, gameConfig.armiesPerTeam);
     // Render to SVG
     renderMap(svgElement, currentMap);
     // Add interactivity
@@ -139,10 +144,11 @@ function handleTerritoryHover(territory, event) {
         const hexCount = territory.hexes.size;
         const team = territory.owner !== undefined ? currentTeams[territory.owner] : null;
         const teamName = team ? team.name : 'Unowned';
+        const typeLabel = territory.type === 'big' ? 'Large' : 'Small';
         tooltipElement.innerHTML = `
-            <strong>${territory.name}</strong><br>
+            <strong>${territory.name}</strong> (${typeLabel})<br>
             Team: ${teamName}<br>
-            Hexes: ${hexCount}<br>
+            Armies: ${territory.armies}<br>
             Neighbors: ${neighborCount}
         `;
         tooltipElement.classList.add('visible');

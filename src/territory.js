@@ -14,6 +14,8 @@ export function createTerritory(id, color, name) {
         neighbors: new Set(),
         owner: undefined,
         armies: 1,
+        type: 'small',
+        armyHex: undefined,
     };
 }
 /**

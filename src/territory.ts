@@ -4,6 +4,8 @@
 
 import { Hex, hexKey, hexNeighbors, parseHexKey } from './hex.js';
 
+export type TerritoryType = 'small' | 'big';
+
 export interface Territory {
     id: number;
     name: string;
@@ -12,6 +14,8 @@ export interface Territory {
     neighbors: Set<number>;    // Adjacent territory IDs
     owner?: number;            // Player ID (for future game logic)
     armies: number;
+    type: TerritoryType;       // Territory size type
+    armyHex?: string;          // Hex key where army dots are displayed
 }
 
 /**
@@ -26,6 +30,8 @@ export function createTerritory(id: number, color: string, name?: string): Terri
         neighbors: new Set(),
         owner: undefined,
         armies: 1,
+        type: 'small',
+        armyHex: undefined,
     };
 }
 

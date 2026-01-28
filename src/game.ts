@@ -2,7 +2,7 @@
  * Game state and team management
  */
 
-import { Territory } from './territory.js';
+import { Territory, TerritoryType } from './territory.js';
 import { TERRITORY_COLORS } from './colors.js';
 
 export interface Team {
@@ -25,7 +25,7 @@ const TEAM_COLORS = [
     '#FFD166',  // Royal Gold
     '#06D6A0',  // Emerald
     '#118AB2',  // Ocean Blue
-    '#073B4C',  // Dark Teal
+    '#864E14',  // Bronze
 ];
 
 const TEAM_NAMES = [
@@ -34,7 +34,7 @@ const TEAM_NAMES = [
     'Gold Empire',
     'Emerald Horde',
     'Ocean Alliance',
-    'Teal Dynasty',
+    'Bronze Dynasty',
 ];
 
 /**
@@ -121,4 +121,87 @@ function shuffleArray<T>(array: T[]): T[] {
         [result[i], result[j]] = [result[j], result[i]];
     }
     return result;
+}
+
+/**
+ * Assign territory types (big/small) to all territories
+ * About 25% will be big, with some randomness (20-30%)
+ */
+export function assignTerritoryTypes(territories: Territory[]): void {
+    // Random percentage between 20% and 30%
+    const bigPercent = 0.20 + Math.random() * 0.10;
+    const bigCount = Math.round(territories.length * bigPercent);
+
+    // Shuffle and pick first N to be big
+    const shuffled = shuffleArray([...territories]);
+
+    for (let i = 0; i < shuffled.length; i++) {
+        shuffled[i].type = i < bigCount ? 'big' : 'small';
+    }
+}
+
+/**
+ * Assign initial armies to territories for each team
+ * Each team gets the same total, randomly distributed across their territories
+ * Respects territory type limits (small: max 7, big: max 10)
+ */
+export function assignInitialArmies(
+    territories: Territory[],
+    teams: Team[],
+    armiesPerTeam: number
+): void {
+    // Group territories by team
+    for (const team of teams) {
+        const teamTerritories = territories.filter(t => t.owner === team.id);
+        if (teamTerritories.length === 0) continue;
+
+        // Start each territory with 1 army
+        for (const territory of teamTerritories) {
+            territory.armies = 1;
+        }
+
+        // Distribute remaining armies randomly
+        let remaining = armiesPerTeam - teamTerritories.length;
+
+        while (remaining > 0) {
+            // Pick a random territory that can accept more armies
+            const eligible = teamTerritories.filter(t => {
+                const maxArmies = t.type === 'big' ? 10 : 7;
+                return t.armies < maxArmies;
+            });
+
+            if (eligible.length === 0) break;
+
+            const randomIndex = Math.floor(Math.random() * eligible.length);
+            eligible[randomIndex].armies++;
+            remaining--;
+        }
+    }
+}
+
+/**
+ * Pick a random hex in each territory to display armies
+ */
+export function assignArmyDisplayHexes(territories: Territory[]): void {
+    for (const territory of territories) {
+        const hexes = Array.from(territory.hexes);
+        if (hexes.length > 0) {
+            const randomIndex = Math.floor(Math.random() * hexes.length);
+            territory.armyHex = hexes[randomIndex];
+        }
+    }
+}
+
+/**
+ * Initialize all game setup for territories
+ * Call this after territories are assigned to teams
+ */
+export function initializeTerritories(
+    territories: Territory[],
+    teams: Team[],
+    armiesPerTeam: number
+): void {
+    assignTerritoryTypes(territories);
+    assignInitialArmies(territories, teams, armiesPerTeam);
+    assignArmyDisplayHexes(territories);
 }
