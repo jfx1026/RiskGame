@@ -12,26 +12,30 @@ let tooltipElement;
 let currentMap = null;
 let currentSize = 'medium';
 // Map size configurations
+// Territory counts calculated to fill ~90% of grid with avg territory size
 const MAP_SIZES = {
     small: {
         gridWidth: 10,
         gridHeight: 8,
-        territoryCount: 8,
-        minTerritorySize: 3,
+        territoryCount: 18, // 72 playable hexes / ~4 avg
+        minTerritorySize: 2,
+        maxTerritorySize: 5,
         emptyTilePercent: 10,
     },
     medium: {
         gridWidth: 18,
         gridHeight: 12,
-        territoryCount: 15,
-        minTerritorySize: 4,
+        territoryCount: 38, // 194 playable hexes / ~5 avg
+        minTerritorySize: 3,
+        maxTerritorySize: 7,
         emptyTilePercent: 10,
     },
     large: {
         gridWidth: 26,
         gridHeight: 16,
-        territoryCount: 24,
-        minTerritorySize: 5,
+        territoryCount: 58, // 374 playable hexes / ~6.5 avg
+        minTerritorySize: 4,
+        maxTerritorySize: 9,
         emptyTilePercent: 10,
     },
 };

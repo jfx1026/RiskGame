@@ -12,6 +12,7 @@ export interface MapGeneratorConfig {
     gridHeight: number;
     territoryCount: number;
     minTerritorySize: number;
+    maxTerritorySize: number;
     emptyTilePercent: number;  // Percentage of tiles to leave empty (0-50)
 }
 
@@ -26,7 +27,8 @@ const DEFAULT_CONFIG: MapGeneratorConfig = {
     gridWidth: 18,
     gridHeight: 12,
     territoryCount: 15,
-    minTerritorySize: 4,
+    minTerritorySize: 3,
+    maxTerritorySize: 7,
     emptyTilePercent: 10,      // 10% empty tiles by default
 };
 
@@ -35,7 +37,7 @@ const DEFAULT_CONFIG: MapGeneratorConfig = {
  */
 export function generateMap(config: Partial<MapGeneratorConfig> = {}): GeneratedMap {
     const finalConfig: MapGeneratorConfig = { ...DEFAULT_CONFIG, ...config };
-    const { gridWidth, gridHeight, territoryCount, minTerritorySize, emptyTilePercent } = finalConfig;
+    const { gridWidth, gridHeight, territoryCount, minTerritorySize, maxTerritorySize, emptyTilePercent } = finalConfig;
 
     // Generate the hex grid
     const allHexes = generateHexGrid(gridWidth, gridHeight);
@@ -107,6 +109,8 @@ export function generateMap(config: Partial<MapGeneratorConfig> = {}): Generated
         const order = shuffleArray([...Array(territories.length).keys()]);
 
         for (const i of order) {
+            // Skip if territory has reached max size
+            if (territories[i].hexes.size >= maxTerritorySize) continue;
             if (frontiers[i].size === 0) continue;
 
             // Pick a random hex from the frontier
@@ -129,10 +133,17 @@ export function generateMap(config: Partial<MapGeneratorConfig> = {}): Generated
             // Update frontier with new adjacent unclaimed hexes
             updateFrontier(territories[i], frontiers[i], unclaimed, validHexKeys);
         }
+
+        // Check if all territories have reached max size
+        const allMaxed = territories.every(t => t.hexes.size >= maxTerritorySize);
+        if (allMaxed) break;
     }
 
-    // Clean up: merge small territories or remove isolated hexes
-    cleanupTerritories(territories, minTerritorySize, validHexKeys);
+    // Assign any remaining unclaimed hexes to neighbors or make them empty
+    assignUnclaimedHexes(territories, unclaimed, emptyHexes, maxTerritorySize);
+
+    // Clean up: merge small territories into neighbors
+    cleanupTerritories(territories, minTerritorySize, maxTerritorySize);
 
     // Calculate territory neighbors
     calculateTerritoryNeighbors(territories);
@@ -221,35 +232,84 @@ function updateFrontier(
 }
 
 /**
+ * Assign unclaimed hexes to neighboring territories or convert to empty
+ */
+function assignUnclaimedHexes(
+    territories: Territory[],
+    unclaimed: Set<string>,
+    emptyHexes: Set<string>,
+    maxSize: number
+): void {
+    if (unclaimed.size === 0) return;
+
+    // Build hex -> territory map
+    const hexToTerritory = new Map<string, Territory>();
+    for (const territory of territories) {
+        for (const hexKeyStr of territory.hexes) {
+            hexToTerritory.set(hexKeyStr, territory);
+        }
+    }
+
+    // Try to assign each unclaimed hex to a neighbor
+    for (const hexKeyStr of unclaimed) {
+        const hex = parseHexKey(hexKeyStr);
+        const neighbors = hexNeighbors(hex);
+
+        // Find neighboring territories that can accept more hexes
+        const eligibleTerritories: Territory[] = [];
+        for (const neighbor of neighbors) {
+            const neighborKey = hexKey(neighbor);
+            const territory = hexToTerritory.get(neighborKey);
+            if (territory && territory.hexes.size < maxSize) {
+                eligibleTerritories.push(territory);
+            }
+        }
+
+        if (eligibleTerritories.length > 0) {
+            // Assign to the smallest eligible neighbor for balance
+            const smallest = eligibleTerritories.reduce((a, b) =>
+                a.hexes.size <= b.hexes.size ? a : b
+            );
+            smallest.hexes.add(hexKeyStr);
+            hexToTerritory.set(hexKeyStr, smallest);
+        } else {
+            // No eligible neighbor, convert to empty tile
+            emptyHexes.add(hexKeyStr);
+        }
+    }
+}
+
+/**
  * Clean up territories: merge small ones into neighbors
  */
 function cleanupTerritories(
     territories: Territory[],
     minSize: number,
-    allHexKeys: Set<string>
+    maxSize: number
 ): void {
     // Calculate neighbors first
     calculateTerritoryNeighbors(territories);
 
-    // Find small territories
+    // Find small territories and merge them
     for (const territory of territories) {
         if (territory.hexes.size < minSize && territory.hexes.size > 0) {
-            // Find a neighbor to merge into
+            // Find a neighbor to merge into (that won't exceed max)
             const neighborIds = Array.from(territory.neighbors);
             if (neighborIds.length > 0) {
-                // Merge into the largest neighbor
                 const neighbors = neighborIds
                     .map(id => territories.find(t => t.id === id))
-                    .filter((t): t is Territory => t !== undefined);
+                    .filter((t): t is Territory => t !== undefined)
+                    .filter(t => t.hexes.size + territory.hexes.size <= maxSize);
 
                 if (neighbors.length > 0) {
-                    const largest = neighbors.reduce((a, b) =>
-                        a.hexes.size >= b.hexes.size ? a : b
+                    // Merge into the smallest eligible neighbor for balance
+                    const smallest = neighbors.reduce((a, b) =>
+                        a.hexes.size <= b.hexes.size ? a : b
                     );
 
                     // Transfer hexes
                     for (const hexKeyStr of territory.hexes) {
-                        largest.hexes.add(hexKeyStr);
+                        smallest.hexes.add(hexKeyStr);
                     }
                     territory.hexes.clear();
                 }
