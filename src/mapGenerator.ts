@@ -145,6 +145,9 @@ export function generateMap(config: Partial<MapGeneratorConfig> = {}): Generated
     // Clean up: merge small territories into neighbors
     cleanupTerritories(territories, minTerritorySize, maxTerritorySize);
 
+    // Remove isolated territories (not connected to main landmass)
+    removeIsolatedTerritories(territories, emptyHexes);
+
     // Calculate territory neighbors
     calculateTerritoryNeighbors(territories);
 
@@ -330,6 +333,90 @@ function cleanupTerritories(
 
     // Recalculate neighbors
     calculateTerritoryNeighbors(territories);
+}
+
+/**
+ * Remove territories that are isolated (not connected to the main landmass)
+ * Uses hex adjacency to find connected components
+ */
+function removeIsolatedTerritories(
+    territories: Territory[],
+    emptyHexes: Set<string>
+): void {
+    if (territories.length <= 1) return;
+
+    // Build a set of all territory hexes for quick lookup
+    const allTerritoryHexes = new Set<string>();
+    for (const territory of territories) {
+        for (const hexKeyStr of territory.hexes) {
+            allTerritoryHexes.add(hexKeyStr);
+        }
+    }
+
+    // Find connected components using BFS on hex adjacency
+    const visited = new Set<string>();
+    const components: Set<string>[] = [];
+
+    for (const startHex of allTerritoryHexes) {
+        if (visited.has(startHex)) continue;
+
+        // BFS to find all connected hexes
+        const component = new Set<string>();
+        const queue: string[] = [startHex];
+        visited.add(startHex);
+
+        while (queue.length > 0) {
+            const currentKey = queue.shift()!;
+            component.add(currentKey);
+
+            const current = parseHexKey(currentKey);
+            const neighbors = hexNeighbors(current);
+
+            for (const neighbor of neighbors) {
+                const neighborKey = hexKey(neighbor);
+                if (!visited.has(neighborKey) && allTerritoryHexes.has(neighborKey)) {
+                    visited.add(neighborKey);
+                    queue.push(neighborKey);
+                }
+            }
+        }
+
+        components.push(component);
+    }
+
+    // Find the largest component (main landmass)
+    if (components.length <= 1) return;
+
+    const largestComponent = components.reduce((a, b) =>
+        a.size >= b.size ? a : b
+    );
+
+    // Convert hexes not in the largest component to empty tiles
+    for (const territory of territories) {
+        const hexesToRemove: string[] = [];
+
+        for (const hexKeyStr of territory.hexes) {
+            if (!largestComponent.has(hexKeyStr)) {
+                hexesToRemove.push(hexKeyStr);
+            }
+        }
+
+        for (const hexKeyStr of hexesToRemove) {
+            territory.hexes.delete(hexKeyStr);
+            emptyHexes.add(hexKeyStr);
+        }
+    }
+
+    // Remove empty territories
+    const nonEmpty = territories.filter(t => t.hexes.size > 0);
+    territories.length = 0;
+    territories.push(...nonEmpty);
+
+    // Renumber territories
+    for (let i = 0; i < territories.length; i++) {
+        territories[i].id = i;
+        territories[i].name = `Territory ${i + 1}`;
+    }
 }
 
 /**

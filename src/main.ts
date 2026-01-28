@@ -6,42 +6,57 @@ import { generateMap, GeneratedMap, MapGeneratorConfig } from './mapGenerator.js
 import { renderMap, addClickHandlers, addHoverHandlers } from './renderer.js';
 import { getTerritoryStats, Territory } from './territory.js';
 import { Hex } from './hex.js';
+import { Team, createTeams, assignTerritoriesToTeams } from './game.js';
 
 // DOM Elements
 let svgElement: SVGSVGElement;
 let statsElement: HTMLElement;
 let tooltipElement: HTMLElement;
 
-// Current map state
+// Current game state
 let currentMap: GeneratedMap | null = null;
+let currentTeams: Team[] = [];
 let currentSize: 'small' | 'medium' | 'large' = 'medium';
 
-// Map size configurations
-// Territory counts calculated to fill ~90% of grid with avg territory size
-const MAP_SIZES: Record<string, Partial<MapGeneratorConfig>> = {
+// Game configuration for each map size
+interface GameConfig {
+    map: Partial<MapGeneratorConfig>;
+    teamCount: number;
+}
+
+const GAME_CONFIGS: Record<string, GameConfig> = {
     small: {
-        gridWidth: 10,
-        gridHeight: 8,
-        territoryCount: 18,      // 72 playable hexes / ~4 avg
-        minTerritorySize: 2,
-        maxTerritorySize: 5,
-        emptyTilePercent: 10,
+        map: {
+            gridWidth: 10,
+            gridHeight: 8,
+            territoryCount: 18,
+            minTerritorySize: 2,
+            maxTerritorySize: 5,
+            emptyTilePercent: 10,
+        },
+        teamCount: 4,
     },
     medium: {
-        gridWidth: 18,
-        gridHeight: 12,
-        territoryCount: 38,      // 194 playable hexes / ~5 avg
-        minTerritorySize: 3,
-        maxTerritorySize: 7,
-        emptyTilePercent: 10,
+        map: {
+            gridWidth: 18,
+            gridHeight: 12,
+            territoryCount: 38,
+            minTerritorySize: 3,
+            maxTerritorySize: 7,
+            emptyTilePercent: 10,
+        },
+        teamCount: 5,
     },
     large: {
-        gridWidth: 26,
-        gridHeight: 16,
-        territoryCount: 58,      // 374 playable hexes / ~6.5 avg
-        minTerritorySize: 4,
-        maxTerritorySize: 9,
-        emptyTilePercent: 10,
+        map: {
+            gridWidth: 26,
+            gridHeight: 16,
+            territoryCount: 58,
+            minTerritorySize: 3,
+            maxTerritorySize: 7,
+            emptyTilePercent: 10,
+        },
+        teamCount: 6,
     },
 };
 
@@ -108,9 +123,15 @@ function updateActiveButton(activeBtn: Element): void {
  * Generate and render a new map
  */
 function generateAndRenderNewMap(): void {
-    // Generate new map with current size config
-    const config = MAP_SIZES[currentSize];
-    currentMap = generateMap(config);
+    // Get config for current size
+    const gameConfig = GAME_CONFIGS[currentSize];
+
+    // Generate new map
+    currentMap = generateMap(gameConfig.map);
+
+    // Create teams and assign territories
+    currentTeams = createTeams(gameConfig.teamCount);
+    assignTerritoriesToTeams(currentMap.territories, currentTeams);
 
     // Render to SVG
     renderMap(svgElement, currentMap);
@@ -120,9 +141,9 @@ function generateAndRenderNewMap(): void {
     addHoverHandlers(svgElement, currentMap.territories, handleTerritoryHover);
 
     // Update stats display
-    updateStats(currentMap);
+    updateStats(currentMap, currentTeams);
 
-    console.log(`Generated map with ${currentMap.territories.length} territories`);
+    console.log(`Generated map with ${currentMap.territories.length} territories for ${currentTeams.length} teams`);
 }
 
 /**
@@ -144,12 +165,15 @@ function handleHexClick(territory: Territory, hex: Hex, event: MouseEvent): void
  */
 function handleTerritoryHover(territory: Territory | null, event: MouseEvent): void {
     if (territory) {
-        // Show tooltip
+        // Show tooltip with team info
         const neighborCount = territory.neighbors.size;
         const hexCount = territory.hexes.size;
+        const team = territory.owner !== undefined ? currentTeams[territory.owner] : null;
+        const teamName = team ? team.name : 'Unowned';
 
         tooltipElement.innerHTML = `
             <strong>${territory.name}</strong><br>
+            Team: ${teamName}<br>
             Hexes: ${hexCount}<br>
             Neighbors: ${neighborCount}
         `;
@@ -190,13 +214,14 @@ function updateTooltipPosition(event: MouseEvent): void {
 /**
  * Update the stats display
  */
-function updateStats(map: GeneratedMap): void {
+function updateStats(map: GeneratedMap, teams: Team[]): void {
     const stats = getTerritoryStats(map.territories);
 
+    // Count territories per team
+    const teamStats = teams.map(t => `${t.name.split(' ')[0]}: ${t.territories.length}`).join(', ');
+
     statsElement.textContent =
-        `${stats.count} territories | ` +
-        `${stats.totalHexes} total hexes | ` +
-        `Size range: ${stats.minSize}-${stats.maxSize} hexes`;
+        `${teams.length} teams | ${stats.count} territories | ${teamStats}`;
 }
 
 // Track mouse movement for tooltip positioning

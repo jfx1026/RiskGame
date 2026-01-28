@@ -78,33 +78,40 @@
             display: block;
         }
 
-        /* Hex styling */
+        /* Hex styling - no stroke, solid fill */
         .hex {
-            stroke: #1a1a2e;
-            stroke-width: 2;
+            stroke: none;
             cursor: pointer;
-            transition: filter 0.15s, stroke-width 0.15s;
+            transition: filter 0.15s;
         }
 
         .hex:hover {
-            filter: brightness(1.2);
-            stroke-width: 3;
+            filter: brightness(1.15);
         }
 
         .hex:focus {
             outline: none;
-            stroke: #fff;
-            stroke-width: 3;
+            filter: brightness(1.2);
         }
 
         .hex-empty {
             cursor: default;
-            opacity: 0.6;
+            fill: #0f0f1a;
         }
 
         .hex-empty:hover {
             filter: none;
-            stroke-width: 2;
+        }
+
+        /* Territory boundary styling */
+        .territory-border {
+            pointer-events: none;
+        }
+
+        /* Selected territory gets white border */
+        .territory-group.selected .territory-border {
+            stroke: #ffffff;
+            stroke-width: 4;
         }
 
         .territory-group {
