@@ -363,6 +363,83 @@
         .territory-group.current-player .territory-border {
             stroke-dasharray: 8, 4;
         }
+
+        /* Surrender button */
+        .surrender-btn {
+            background: #c62828;
+            margin-left: 10px;
+        }
+
+        .surrender-btn:hover {
+            background: #d32f2f;
+        }
+
+        /* Modal buttons row */
+        .modal-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 25px;
+        }
+
+        .modal-buttons button {
+            min-width: 100px;
+        }
+
+        .modal-buttons .cancel-btn {
+            background: #555;
+        }
+
+        .modal-buttons .cancel-btn:hover {
+            background: #666;
+        }
+
+        .modal-buttons .confirm-btn {
+            background: #c62828;
+        }
+
+        .modal-buttons .confirm-btn:hover {
+            background: #d32f2f;
+        }
+
+        /* Game start modal */
+        .game-start-content {
+            background: #1a1a2e;
+            border-radius: 16px;
+            padding: 40px 60px;
+            text-align: center;
+            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+            animation: pop-in 0.5s ease-out;
+        }
+
+        .game-start-content h2 {
+            font-size: 2rem;
+            color: #eee;
+            margin-bottom: 20px;
+        }
+
+        .game-start-content .team-announcement {
+            font-size: 1.8rem;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+
+        .game-start-content p {
+            color: #aaa;
+            font-size: 1rem;
+            margin-bottom: 10px;
+        }
+
+        .game-start-content button {
+            margin-top: 20px;
+            background: #2e7d32;
+            font-size: 1.1rem;
+            padding: 14px 50px;
+        }
+
+        .game-start-content button:hover {
+            background: #388e3c;
+        }
     </style>
 </head>
 <body>
@@ -376,6 +453,7 @@
         <button id="large-map-btn" class="size-btn" aria-label="Generate a large map">Large</button>
         <button id="end-turn-btn" class="end-turn-btn" aria-label="End your turn">End Turn</button>
         <button id="fast-forward-btn" class="fast-forward-btn" aria-label="Speed up computer turns">Fast Forward</button>
+        <button id="surrender-btn" class="surrender-btn" aria-label="Surrender the game">Surrender</button>
     </div>
 
     <div id="turn-indicator" class="turn-indicator">

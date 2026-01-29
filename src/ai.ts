@@ -78,13 +78,16 @@ export function findBestAttack(state: GameState): AttackDecision | null {
         return null;
     }
 
-    // Only attack if we have a reasonable advantage
-    // Score of 10 means equal armies (ratio of 1.0 * 10)
     const bestAttack = attacks[0];
 
-    // Be somewhat aggressive - attack if we have at least equal or better odds
-    // A score of 10 means 1:1 ratio, which gives decent chances
-    if (bestAttack.score >= 8) {
+    // Balanced aggression - attack when odds are reasonable
+    // Score examples:
+    //   3v2: ratio=1.5 -> 15 + 2 + 8 = 25 (good)
+    //   2v2: ratio=1.0 -> 10 + 0 + 8 = 18 (decent)
+    //   2v3: ratio=0.67 -> 6.7 - 2 + 7 = 11.7 (acceptable)
+    //   2v4: ratio=0.5 -> 5 - 4 + 6 = 7 (risky but ok)
+    //   2v5: ratio=0.4 -> 4 - 6 + 5 = 3 (too risky)
+    if (bestAttack.score >= 5) {
         return bestAttack;
     }
 
@@ -98,7 +101,7 @@ export function findBestAttack(state: GameState): AttackDecision | null {
  */
 export function shouldContinueAttacking(state: GameState, attacksThisTurn: number): boolean {
     // Limit attacks per turn to prevent infinite loops and give human time to see
-    const MAX_ATTACKS_PER_TURN = 10;
+    const MAX_ATTACKS_PER_TURN = 15;
 
     if (attacksThisTurn >= MAX_ATTACKS_PER_TURN) {
         return false;

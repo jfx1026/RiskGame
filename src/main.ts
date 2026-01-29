@@ -43,6 +43,7 @@ let tooltipElement: HTMLElement;
 let turnIndicatorElement: HTMLElement;
 let endTurnButton: HTMLButtonElement;
 let fastForwardButton: HTMLButtonElement;
+let surrenderButton: HTMLButtonElement;
 let combatLogElement: HTMLElement;
 
 // Current game state
@@ -112,6 +113,7 @@ function init(): void {
     const turnIndicatorEl = document.getElementById('turn-indicator');
     const endTurnBtn = document.getElementById('end-turn-btn');
     const fastForwardBtn = document.getElementById('fast-forward-btn');
+    const surrenderBtn = document.getElementById('surrender-btn');
     const combatLogEl = document.getElementById('combat-log');
 
     if (!svgEl || !smallBtn || !mediumBtn || !largeBtn || !statsEl || !tooltipEl) {
@@ -125,6 +127,7 @@ function init(): void {
     turnIndicatorElement = turnIndicatorEl || createTurnIndicator();
     endTurnButton = (endTurnBtn as HTMLButtonElement) || createEndTurnButton();
     fastForwardButton = (fastForwardBtn as HTMLButtonElement) || createFastForwardButton();
+    surrenderButton = (surrenderBtn as HTMLButtonElement) || createSurrenderButton();
     combatLogElement = combatLogEl || createCombatLog();
 
     // Set up event listeners for size buttons
@@ -151,6 +154,9 @@ function init(): void {
 
     // Set up Fast Forward button
     fastForwardButton.addEventListener('click', toggleFastForward);
+
+    // Set up Surrender button
+    surrenderButton.addEventListener('click', handleSurrender);
 
     // Set initial active button
     updateActiveButton(mediumBtn);
@@ -212,6 +218,95 @@ function toggleFastForward(): void {
     isFastForward = !isFastForward;
     fastForwardButton.classList.toggle('active', isFastForward);
     fastForwardButton.textContent = isFastForward ? 'Fast Forward ON' : 'Fast Forward';
+}
+
+/**
+ * Create Surrender button if it doesn't exist in DOM
+ */
+function createSurrenderButton(): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.id = 'surrender-btn';
+    button.className = 'surrender-btn';
+    button.textContent = 'Surrender';
+    const controls = document.querySelector('.controls');
+    if (controls) {
+        controls.appendChild(button);
+    }
+    return button;
+}
+
+/**
+ * Handle surrender button click - show confirmation modal
+ */
+function handleSurrender(): void {
+    if (!gameState || gameState.phase === 'gameOver') {
+        return;
+    }
+
+    // Don't allow surrender during computer's turn
+    if (isComputerPlaying) {
+        return;
+    }
+
+    showSurrenderConfirmation();
+}
+
+/**
+ * Show surrender confirmation modal
+ */
+function showSurrenderConfirmation(): void {
+    const overlay = document.createElement('div');
+    overlay.className = 'victory-overlay';
+    overlay.id = 'surrender-modal';
+    overlay.innerHTML = `
+        <div class="victory-content">
+            <h2 style="color: #ff6b6b">Surrender?</h2>
+            <p>Are you sure you want to surrender the game?</p>
+            <div class="modal-buttons">
+                <button class="cancel-btn" onclick="document.getElementById('surrender-modal').remove()">Cancel</button>
+                <button class="confirm-btn" id="confirm-surrender-btn">Surrender</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+
+    // Add event listener for confirm button
+    document.getElementById('confirm-surrender-btn')?.addEventListener('click', () => {
+        overlay.remove();
+        executeSurrender();
+    });
+}
+
+/**
+ * Execute the surrender - show defeat screen
+ */
+function executeSurrender(): void {
+    if (!gameState) return;
+
+    const humanTeam = gameState.teams.find(t => t.isHuman);
+    if (!humanTeam) return;
+
+    // Set game to over state
+    gameState = {
+        ...gameState,
+        phase: 'gameOver',
+    };
+
+    logCombatResult(`${humanTeam.name} has surrendered!`);
+
+    // Show defeat overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'victory-overlay';
+    overlay.innerHTML = `
+        <div class="victory-content">
+            <h2 style="color: #ff6b6b">Surrendered</h2>
+            <p>${humanTeam.name} has surrendered the game</p>
+            <button onclick="this.parentElement.parentElement.remove()">Close</button>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+
+    updateTurnIndicator();
 }
 
 /**
@@ -280,19 +375,46 @@ function generateAndRenderNewMap(): void {
     updateStats();
     clearCombatLog();
 
-    // Log which team is the human player
+    // Show game start message with human's team
     const humanTeam = teams.find(t => t.isHuman);
     if (humanTeam) {
-        logCombatResult(`You are playing as ${humanTeam.name}`);
+        showGameStartMessage(humanTeam);
     }
 
     console.log(`Started new game with ${currentMap.territories.length} territories for ${teams.length} teams`);
+}
 
-    // If first player is computer, run computer turns
-    const firstTeam = getCurrentTeam(gameState);
-    if (!firstTeam.isHuman) {
-        runComputerTurns();
-    }
+/**
+ * Show game start message modal
+ */
+function showGameStartMessage(humanTeam: Team): void {
+    const overlay = document.createElement('div');
+    overlay.className = 'victory-overlay';
+    overlay.id = 'game-start-modal';
+    overlay.innerHTML = `
+        <div class="game-start-content">
+            <h2>New Game</h2>
+            <p>You are playing as:</p>
+            <div class="team-announcement" style="color: ${humanTeam.color}">${humanTeam.name}</div>
+            <p>Conquer all territories to win!</p>
+            <button id="start-game-btn">Start Game</button>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+
+    // Add event listener for start button
+    document.getElementById('start-game-btn')?.addEventListener('click', () => {
+        overlay.remove();
+        logCombatResult(`You are playing as ${humanTeam.name}`);
+
+        // If first player is computer, run computer turns
+        if (gameState) {
+            const firstTeam = getCurrentTeam(gameState);
+            if (!firstTeam.isHuman) {
+                runComputerTurns();
+            }
+        }
+    });
 }
 
 /**
@@ -413,8 +535,9 @@ function handleEndTurn(): void {
 
     // Only allow human player to end their turn
     const currentTeam = getCurrentTeam(gameState);
+    console.log(`[handleEndTurn] Current team: ${currentTeam.name}, isHuman: ${currentTeam.isHuman}`);
     if (!currentTeam.isHuman) {
-        console.warn('handleEndTurn called but current team is not human');
+        console.warn('[handleEndTurn] Called but current team is not human - ignoring');
         return;
     }
 
@@ -422,7 +545,9 @@ function handleEndTurn(): void {
     const resupplyAmount = calculateResupply(gameState);
 
     // End the turn
+    console.log(`[handleEndTurn] Ending turn for ${previousTeam.name}`);
     gameState = endTurn(gameState);
+    console.log(`[handleEndTurn] After endTurn, new currentTeamIndex: ${gameState.currentTeamIndex}, team: ${getCurrentTeam(gameState).name}`);
 
     // Log resupply
     logCombatResult(`${previousTeam.name} received ${resupplyAmount} reinforcements`);
@@ -472,15 +597,19 @@ async function runComputerTurns(): Promise<void> {
     while (gameState && gameState.winner === null) {
         const currentTeam = getCurrentTeam(gameState);
 
+        console.log(`[runComputerTurns] Current team: ${currentTeam.name}, isHuman: ${currentTeam.isHuman}, index: ${gameState.currentTeamIndex}`);
+
         // If current team is human, stop and let them play
         if (currentTeam.isHuman) {
             // Verify human still has territories
             const humanTerritories = gameState.territories.filter(t => t.owner === currentTeam.id);
+            console.log(`[runComputerTurns] Human team ${currentTeam.name} has ${humanTerritories.length} territories`);
             if (humanTerritories.length === 0) {
                 // Human has been eliminated, show defeat
                 showDefeat();
                 break;
             }
+            console.log(`[runComputerTurns] Breaking loop - human's turn`);
             break;
         }
 
@@ -489,6 +618,8 @@ async function runComputerTurns(): Promise<void> {
 
         // Execute computer's turn
         await executeComputerTurn();
+
+        console.log(`[runComputerTurns] After executeComputerTurn, currentTeamIndex: ${gameState.currentTeamIndex}`);
 
         // Check for game over
         if (gameState.winner !== null) {
@@ -500,6 +631,9 @@ async function runComputerTurns(): Promise<void> {
     isComputerPlaying = false;
     endTurnButton.disabled = false;
     updateTurnIndicator();
+
+    const finalTeam = getCurrentTeam(gameState);
+    console.log(`[runComputerTurns] Finished. Now it's ${finalTeam.name}'s turn (isHuman: ${finalTeam.isHuman})`);
 }
 
 /**
@@ -556,6 +690,9 @@ async function executeComputerTurn(): Promise<void> {
 
         // Small delay to show selection
         await delay(300);
+
+        // Select the source territory in game state (required for attemptAttack)
+        gameState = selectTerritory(gameState, source.id);
 
         // Execute the attack
         gameState = attemptAttack(gameState, target.id);
@@ -745,7 +882,11 @@ function updateStats(): void {
             const totalArmies = gameState!.territories
                 .filter(ter => ter.owner === t.id)
                 .reduce((sum, ter) => sum + ter.armies, 0);
-            return `<span style="color: ${t.color}">${t.name.split(' ')[0]}: ${territoryCount} (${totalArmies})</span>`;
+            // Bold the human team's name
+            const teamName = t.isHuman
+                ? `<strong>${t.name.split(' ')[0]} (You)</strong>`
+                : t.name.split(' ')[0];
+            return `<span style="color: ${t.color}">${teamName}: ${territoryCount} (${totalArmies})</span>`;
         })
         .join(' | ');
 
