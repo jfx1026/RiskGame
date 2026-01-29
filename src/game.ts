@@ -26,6 +26,7 @@ export interface GameState {
     turnNumber: number;
     lastCombatResult: CombatResult | null;
     winner: number | null;  // Team ID of winner, if game is over
+    capturedThisTurn: boolean;  // True if current team captured a territory this turn
 }
 
 // Custom colorblind-friendly palette
@@ -240,6 +241,7 @@ export function startGame(map: GeneratedMap, teams: Team[]): GameState {
         turnNumber: 1,
         lastCombatResult: null,
         winner: null,
+        capturedThisTurn: false,
     };
 }
 
@@ -334,6 +336,9 @@ export function attemptAttack(state: GameState, targetId: number): GameState {
     // Check for victory
     const winner = checkVictory(state);
 
+    // Track if territory was captured this turn
+    const captured = state.capturedThisTurn || combatResult.attackerWins;
+
     // Return to select phase after attack
     return {
         ...state,
@@ -341,6 +346,7 @@ export function attemptAttack(state: GameState, targetId: number): GameState {
         phase: winner !== null ? 'gameOver' : 'select',
         lastCombatResult: combatResult,
         winner,
+        capturedThisTurn: captured,
     };
 }
 
@@ -380,16 +386,30 @@ export function endTurn(state: GameState): GameState {
         turnNumber: state.turnNumber + 1,
         lastCombatResult: null,
         winner,
+        capturedThisTurn: false,  // Reset for next player's turn
     };
 }
 
 /**
  * Calculate resupply amount for the current team
- * Based on the size of their largest contiguous territory group
+ * Formula: (Largest contiguous group) + (Total territories / 4)
+ * Penalty: If no territories captured this turn, get half (rounded down)
  */
 export function calculateResupply(state: GameState): number {
     const currentTeam = getCurrentTeam(state);
-    return findLargestContiguousGroup(state.territories, currentTeam.id);
+    const totalTerritories = state.territories.filter(t => t.owner === currentTeam.id).length;
+    const largestGroup = findLargestContiguousGroup(state.territories, currentTeam.id);
+
+    // Base reinforcements: largest group + total/4
+    let reinforcements = largestGroup + Math.floor(totalTerritories / 4);
+
+    // Penalty for not capturing any territory: half reinforcements
+    if (!state.capturedThisTurn) {
+        reinforcements = Math.floor(reinforcements / 2);
+    }
+
+    // Minimum of 1 reinforcement (if they have any territories)
+    return totalTerritories > 0 ? Math.max(1, reinforcements) : 0;
 }
 
 /**

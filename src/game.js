@@ -176,6 +176,7 @@ export function startGame(map, teams) {
         turnNumber: 1,
         lastCombatResult: null,
         winner: null,
+        capturedThisTurn: false,
     };
 }
 /**
@@ -255,6 +256,8 @@ export function attemptAttack(state, targetId) {
     const combatResult = executeAttack(source, target, state.teams);
     // Check for victory
     const winner = checkVictory(state);
+    // Track if territory was captured this turn
+    const captured = state.capturedThisTurn || combatResult.attackerWins;
     // Return to select phase after attack
     return {
         ...state,
@@ -262,6 +265,7 @@ export function attemptAttack(state, targetId) {
         phase: winner !== null ? 'gameOver' : 'select',
         lastCombatResult: combatResult,
         winner,
+        capturedThisTurn: captured,
     };
 }
 /**
@@ -295,15 +299,26 @@ export function endTurn(state) {
         turnNumber: state.turnNumber + 1,
         lastCombatResult: null,
         winner,
+        capturedThisTurn: false, // Reset for next player's turn
     };
 }
 /**
  * Calculate resupply amount for the current team
- * Based on the size of their largest contiguous territory group
+ * Formula: (Largest contiguous group) + (Total territories / 4)
+ * Penalty: If no territories captured this turn, get half (rounded down)
  */
 export function calculateResupply(state) {
     const currentTeam = getCurrentTeam(state);
-    return findLargestContiguousGroup(state.territories, currentTeam.id);
+    const totalTerritories = state.territories.filter(t => t.owner === currentTeam.id).length;
+    const largestGroup = findLargestContiguousGroup(state.territories, currentTeam.id);
+    // Base reinforcements: largest group + total/4
+    let reinforcements = largestGroup + Math.floor(totalTerritories / 4);
+    // Penalty for not capturing any territory: half reinforcements
+    if (!state.capturedThisTurn) {
+        reinforcements = Math.floor(reinforcements / 2);
+    }
+    // Minimum of 1 reinforcement (if they have any territories)
+    return totalTerritories > 0 ? Math.max(1, reinforcements) : 0;
 }
 /**
  * Find the size of the largest contiguous group of territories for a team
