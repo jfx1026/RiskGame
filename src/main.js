@@ -266,6 +266,8 @@ function updateActiveButton(activeBtn) {
     });
     activeBtn.classList.add('active');
 }
+// Track if SVG event listeners have been added
+let svgListenersInitialized = false;
 /**
  * Generate and render a new map, starting a new game
  */
@@ -283,18 +285,15 @@ function generateAndRenderNewMap() {
     gameState = startGame(currentMap, teams);
     // Render to SVG
     renderMap(svgElement, currentMap);
-    // Add interactivity
+    // Add interactivity - renderMap clears the SVG, so we need to re-add handlers
+    // But we use a wrapper that checks game state, so handlers don't accumulate badly
     addClickHandlers(svgElement, currentMap.territories, handleHexClick);
     addHoverHandlers(svgElement, currentMap.territories, handleTerritoryHover);
-    // Handle clicks on empty space to deselect
-    svgElement.addEventListener('click', (event) => {
-        const target = event.target;
-        if (target === svgElement || target.classList.contains('hex-empty')) {
-            if (gameState) {
-                gameState = deselectTerritory(gameState);
-            }
-        }
-    });
+    // Add click handler for empty space deselection - only once
+    if (!svgListenersInitialized) {
+        svgElement.addEventListener('click', handleSvgBackgroundClick);
+        svgListenersInitialized = true;
+    }
     // Update UI
     updateTurnIndicator();
     updateStats();
@@ -341,6 +340,19 @@ function showGameStartMessage(humanTeam) {
             }
         }
     });
+}
+/**
+ * Handle clicks on SVG background/empty tiles to deselect
+ */
+function handleSvgBackgroundClick(event) {
+    const target = event.target;
+    if (target === svgElement || target.classList.contains('hex-empty')) {
+        if (gameState) {
+            gameState = deselectTerritory(gameState);
+            deselectAll(svgElement);
+            clearHighlights(svgElement);
+        }
+    }
 }
 /**
  * Handle hex click - implements selection and attack logic

@@ -186,7 +186,16 @@ function renderArmyDots(territory: Territory, hexSize: number): SVGGElement {
             dot.setAttribute('cx', String(x));
             dot.setAttribute('cy', String(y));
             dot.setAttribute('r', String(dotRadius));
-            dot.setAttribute('fill', '#000000');
+
+            if (isFilled) {
+                // Filled dots: white with dark outline for visibility
+                dot.setAttribute('fill', '#ffffff');
+                dot.setAttribute('stroke', '#000000');
+                dot.setAttribute('stroke-width', '1');
+            } else {
+                // Empty dots: handled by CSS (.army-dot-empty)
+                dot.setAttribute('fill', 'none');
+            }
 
             group.appendChild(dot);
             filledCount++;
@@ -334,15 +343,8 @@ export function addClickHandlers(
             }
         });
     });
-
-    // Click on empty space or empty hex deselects and clears highlights
-    svgElement.addEventListener('click', (event) => {
-        const target = event.target as Element;
-        if (target === svgElement || target.classList.contains('hex-empty')) {
-            deselectAll(svgElement);
-            clearHighlights(svgElement);
-        }
-    });
+    // Note: Background click handling for deselection is handled by main.ts
+    // to avoid listener accumulation when new maps are generated
 }
 
 /**
@@ -542,75 +544,12 @@ export function updateTerritoryDisplay(
 
     // Re-render army dots
     if (territory.armyHex && territory.armies > 0) {
-        const armyGroup = renderArmyDotsForTerritory(territory, hexSize);
+        const armyGroup = renderArmyDots(territory, hexSize);
         group.appendChild(armyGroup);
     }
 
     // Update ARIA label
     group.setAttribute('aria-label', `${territory.name}, ${territory.hexes.size} hexes, ${territory.armies} armies`);
-}
-
-/**
- * Render army dots for a territory (extracted for reuse)
- * Shows filled dots for armies and empty (grey) dots for remaining capacity
- */
-function renderArmyDotsForTerritory(territory: Territory, hexSize: number): SVGGElement {
-    const group = createSvgElement('g') as SVGGElement;
-    group.setAttribute('class', 'army-dots');
-
-    if (!territory.armyHex) return group;
-
-    const hex = parseHexKey(territory.armyHex);
-    const center = hexToPixel(hex, hexSize);
-    const armies = territory.armies;
-    const maxCapacity = territory.type === 'big' ? 10 : 7;
-
-    // Dot configuration
-    const dotRadius = hexSize * 0.12;
-    const dotSpacing = dotRadius * 2.5;
-
-    // Arrange dots in rows (max 5 per row) - use max capacity for layout
-    const dotsPerRow = 5;
-    const rows: number[] = [];
-    let remaining = maxCapacity;
-
-    while (remaining > 0) {
-        const dotsInThisRow = Math.min(remaining, dotsPerRow);
-        rows.push(dotsInThisRow);
-        remaining -= dotsInThisRow;
-    }
-
-    // Calculate total height to center vertically
-    const totalHeight = (rows.length - 1) * dotSpacing;
-    const startY = center.y - totalHeight / 2;
-
-    // Draw dots - track how many filled dots we've drawn
-    let filledCount = 0;
-
-    for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
-        const dotsInRow = rows[rowIndex];
-        const rowWidth = (dotsInRow - 1) * dotSpacing;
-        const startX = center.x - rowWidth / 2;
-        const y = startY + rowIndex * dotSpacing;
-
-        for (let dotIndex = 0; dotIndex < dotsInRow; dotIndex++) {
-            const x = startX + dotIndex * dotSpacing;
-            const isFilled = filledCount < armies;
-
-            // Create dot
-            const dot = createSvgElement('circle');
-            dot.setAttribute('class', isFilled ? 'army-dot' : 'army-dot army-dot-empty');
-            dot.setAttribute('cx', String(x));
-            dot.setAttribute('cy', String(y));
-            dot.setAttribute('r', String(dotRadius));
-            dot.setAttribute('fill', '#000000');
-
-            group.appendChild(dot);
-            filledCount++;
-        }
-    }
-
-    return group;
 }
 
 /**

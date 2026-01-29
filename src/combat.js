@@ -51,9 +51,18 @@ export function executeAttack(source, target, teams) {
     let defenderLost = 0;
     if (result.attackerWins) {
         // Attacker wins - defender loses all armies
-        // Attacker moves all but 1 army into captured territory
+        // Attacker loses some armies too (attrition from conquest)
+        // Attacker casualties = half of defender's armies (rounded down), min 0
         defenderLost = target.armies;
-        const movingArmies = source.armies - 1;
+        attackerLost = Math.floor(target.armies / 2);
+        // Ensure attacker keeps at least 1 army after casualties
+        const remainingAttacker = source.armies - attackerLost;
+        if (remainingAttacker < 2) {
+            // Need at least 2 to leave 1 behind and move 1
+            attackerLost = Math.max(0, source.armies - 2);
+        }
+        // Calculate moving armies: source armies - casualties - 1 (left behind)
+        const movingArmies = source.armies - attackerLost - 1;
         // Update territory ownership
         const previousOwner = target.owner;
         const newOwner = source.owner;
@@ -71,7 +80,7 @@ export function executeAttack(source, target, teams) {
         // Update territory properties
         target.owner = newOwner;
         target.color = source.color;
-        target.armies = movingArmies;
+        target.armies = Math.max(1, movingArmies); // At least 1 army in conquered territory
         source.armies = 1;
     }
     else {
@@ -145,7 +154,9 @@ export function formatCombatResult(result, attackerName, defenderName) {
     const attackerRollsStr = result.attackerRolls.sort((a, b) => b - a).join(', ');
     const defenderRollsStr = result.defenderRolls.sort((a, b) => b - a).join(', ');
     if (result.attackerWins) {
-        return `${attackerName} [${attackerRollsStr}] conquers ${defenderName} [${defenderRollsStr}]!`;
+        // Show attacker casualties if any
+        const casualtyInfo = result.attackerLost > 0 ? ` (-${result.attackerLost} att)` : '';
+        return `${attackerName} [${attackerRollsStr}] conquers ${defenderName} [${defenderRollsStr}]!${casualtyInfo}`;
     }
     else {
         // Show both sides' losses in defense
