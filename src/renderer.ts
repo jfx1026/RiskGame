@@ -134,6 +134,7 @@ function renderTerritory(territory: Territory, hexSize: number): SVGGElement {
 
 /**
  * Render army dots for a territory
+ * Shows filled dots for armies and empty (grey) dots for remaining capacity
  * Dots are arranged in rows, centered on the army display hex
  */
 function renderArmyDots(territory: Territory, hexSize: number): SVGGElement {
@@ -145,15 +146,16 @@ function renderArmyDots(territory: Territory, hexSize: number): SVGGElement {
     const hex = parseHexKey(territory.armyHex);
     const center = hexToPixel(hex, hexSize);
     const armies = territory.armies;
+    const maxCapacity = territory.type === 'big' ? 10 : 7;
 
     // Dot configuration
     const dotRadius = hexSize * 0.12;
     const dotSpacing = dotRadius * 2.5;
 
-    // Arrange dots in rows (max 5 per row)
+    // Arrange dots in rows (max 5 per row) - use max capacity for layout
     const dotsPerRow = 5;
     const rows: number[] = [];
-    let remaining = armies;
+    let remaining = maxCapacity;
 
     while (remaining > 0) {
         const dotsInThisRow = Math.min(remaining, dotsPerRow);
@@ -165,7 +167,9 @@ function renderArmyDots(territory: Territory, hexSize: number): SVGGElement {
     const totalHeight = (rows.length - 1) * dotSpacing;
     const startY = center.y - totalHeight / 2;
 
-    // Draw dots
+    // Draw dots - track how many filled dots we've drawn
+    let filledCount = 0;
+
     for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
         const dotsInRow = rows[rowIndex];
         const rowWidth = (dotsInRow - 1) * dotSpacing;
@@ -174,16 +178,18 @@ function renderArmyDots(territory: Territory, hexSize: number): SVGGElement {
 
         for (let dotIndex = 0; dotIndex < dotsInRow; dotIndex++) {
             const x = startX + dotIndex * dotSpacing;
+            const isFilled = filledCount < armies;
 
-            // Create dot with glow effect
+            // Create dot
             const dot = createSvgElement('circle');
-            dot.setAttribute('class', 'army-dot');
+            dot.setAttribute('class', isFilled ? 'army-dot' : 'army-dot army-dot-empty');
             dot.setAttribute('cx', String(x));
             dot.setAttribute('cy', String(y));
             dot.setAttribute('r', String(dotRadius));
             dot.setAttribute('fill', '#000000');
 
             group.appendChild(dot);
+            filledCount++;
         }
     }
 
@@ -546,6 +552,7 @@ export function updateTerritoryDisplay(
 
 /**
  * Render army dots for a territory (extracted for reuse)
+ * Shows filled dots for armies and empty (grey) dots for remaining capacity
  */
 function renderArmyDotsForTerritory(territory: Territory, hexSize: number): SVGGElement {
     const group = createSvgElement('g') as SVGGElement;
@@ -556,15 +563,16 @@ function renderArmyDotsForTerritory(territory: Territory, hexSize: number): SVGG
     const hex = parseHexKey(territory.armyHex);
     const center = hexToPixel(hex, hexSize);
     const armies = territory.armies;
+    const maxCapacity = territory.type === 'big' ? 10 : 7;
 
     // Dot configuration
     const dotRadius = hexSize * 0.12;
     const dotSpacing = dotRadius * 2.5;
 
-    // Arrange dots in rows (max 5 per row)
+    // Arrange dots in rows (max 5 per row) - use max capacity for layout
     const dotsPerRow = 5;
     const rows: number[] = [];
-    let remaining = armies;
+    let remaining = maxCapacity;
 
     while (remaining > 0) {
         const dotsInThisRow = Math.min(remaining, dotsPerRow);
@@ -576,7 +584,9 @@ function renderArmyDotsForTerritory(territory: Territory, hexSize: number): SVGG
     const totalHeight = (rows.length - 1) * dotSpacing;
     const startY = center.y - totalHeight / 2;
 
-    // Draw dots
+    // Draw dots - track how many filled dots we've drawn
+    let filledCount = 0;
+
     for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
         const dotsInRow = rows[rowIndex];
         const rowWidth = (dotsInRow - 1) * dotSpacing;
@@ -585,16 +595,18 @@ function renderArmyDotsForTerritory(territory: Territory, hexSize: number): SVGG
 
         for (let dotIndex = 0; dotIndex < dotsInRow; dotIndex++) {
             const x = startX + dotIndex * dotSpacing;
+            const isFilled = filledCount < armies;
 
-            // Create dot with glow effect
+            // Create dot
             const dot = createSvgElement('circle');
-            dot.setAttribute('class', 'army-dot');
+            dot.setAttribute('class', isFilled ? 'army-dot' : 'army-dot army-dot-empty');
             dot.setAttribute('cx', String(x));
             dot.setAttribute('cy', String(y));
             dot.setAttribute('r', String(dotRadius));
             dot.setAttribute('fill', '#000000');
 
             group.appendChild(dot);
+            filledCount++;
         }
     }
 

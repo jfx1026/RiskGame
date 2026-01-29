@@ -330,8 +330,14 @@ function showGameStartMessage(humanTeam) {
         // If first player is computer, run computer turns
         if (gameState) {
             const firstTeam = getCurrentTeam(gameState);
+            console.log(`[showGameStartMessage] First team: ${firstTeam.name}, isHuman: ${firstTeam.isHuman}, index: ${gameState.currentTeamIndex}`);
+            console.log(`[showGameStartMessage] Human team: ${humanTeam.name}, id: ${humanTeam.id}`);
             if (!firstTeam.isHuman) {
+                console.log(`[showGameStartMessage] Starting computer turns...`);
                 runComputerTurns();
+            }
+            else {
+                console.log(`[showGameStartMessage] Human goes first, waiting for input`);
             }
         }
     });
@@ -477,12 +483,22 @@ async function runComputerTurns() {
     if (!gameState || gameState.phase === 'gameOver') {
         return;
     }
+    // Prevent concurrent calls
+    if (isComputerPlaying) {
+        console.warn('[runComputerTurns] Already running, ignoring duplicate call');
+        return;
+    }
     isComputerPlaying = true;
     endTurnButton.disabled = true;
+    console.log(`[runComputerTurns] Starting. Current team index: ${gameState.currentTeamIndex}`);
+    // Safety limit to prevent infinite loops
+    let iterations = 0;
+    const maxIterations = gameState.teams.length * 2;
     // Loop through computer players until we reach a human
-    while (gameState && gameState.winner === null) {
+    while (gameState && gameState.winner === null && iterations < maxIterations) {
+        iterations++;
         const currentTeam = getCurrentTeam(gameState);
-        console.log(`[runComputerTurns] Current team: ${currentTeam.name}, isHuman: ${currentTeam.isHuman}, index: ${gameState.currentTeamIndex}`);
+        console.log(`[runComputerTurns] Iteration ${iterations}: Team ${currentTeam.name}, isHuman: ${currentTeam.isHuman}, index: ${gameState.currentTeamIndex}`);
         // If current team is human, stop and let them play
         if (currentTeam.isHuman) {
             // Verify human still has territories
@@ -507,11 +523,20 @@ async function runComputerTurns() {
             break;
         }
     }
+    if (iterations >= maxIterations) {
+        console.error('[runComputerTurns] Hit max iterations! Something is wrong with turn cycling.');
+    }
     isComputerPlaying = false;
     endTurnButton.disabled = false;
     updateTurnIndicator();
-    const finalTeam = getCurrentTeam(gameState);
-    console.log(`[runComputerTurns] Finished. Now it's ${finalTeam.name}'s turn (isHuman: ${finalTeam.isHuman})`);
+    if (gameState) {
+        const finalTeam = getCurrentTeam(gameState);
+        console.log(`[runComputerTurns] Finished. Now it's ${finalTeam.name}'s turn (isHuman: ${finalTeam.isHuman})`);
+        // Safety check: if we finished but it's not a human's turn, something went wrong
+        if (!finalTeam.isHuman && gameState.winner === null) {
+            console.error('[runComputerTurns] ERROR: Finished but current team is not human!');
+        }
+    }
 }
 /**
  * Show defeat message when human player is eliminated
