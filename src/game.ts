@@ -12,6 +12,7 @@ export interface Team {
     name: string;
     color: string;
     territories: number[];  // Territory IDs owned by this team
+    isHuman: boolean;  // True if controlled by human player
 }
 
 export type GamePhase = 'select' | 'attack' | 'resupply' | 'gameOver';
@@ -48,9 +49,13 @@ const TEAM_NAMES = [
 
 /**
  * Create teams for a game
+ * One team is randomly assigned as human, rest are computer-controlled
  */
 export function createTeams(teamCount: number): Team[] {
     const teams: Team[] = [];
+
+    // Randomly select which team will be human
+    const humanTeamIndex = Math.floor(Math.random() * teamCount);
 
     for (let i = 0; i < teamCount; i++) {
         teams.push({
@@ -58,8 +63,11 @@ export function createTeams(teamCount: number): Team[] {
             name: TEAM_NAMES[i] || `Team ${i + 1}`,
             color: TEAM_COLORS[i] || TERRITORY_COLORS[i],
             territories: [],
+            isHuman: i === humanTeamIndex,
         });
     }
+
+    console.log(`Human player: ${teams[humanTeamIndex].name}`);
 
     return teams;
 }

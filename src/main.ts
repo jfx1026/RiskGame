@@ -34,6 +34,7 @@ import {
     calculateResupply
 } from './game.js';
 import { formatCombatResult } from './combat.js';
+import { findBestAttack, shouldContinueAttacking } from './ai.js';
 
 // DOM Elements
 let svgElement: SVGSVGElement;
@@ -41,12 +42,15 @@ let statsElement: HTMLElement;
 let tooltipElement: HTMLElement;
 let turnIndicatorElement: HTMLElement;
 let endTurnButton: HTMLButtonElement;
+let fastForwardButton: HTMLButtonElement;
 let combatLogElement: HTMLElement;
 
 // Current game state
 let currentMap: GeneratedMap | null = null;
 let gameState: GameState | null = null;
 let currentSize: 'small' | 'medium' | 'large' = 'medium';
+let isComputerPlaying = false;  // True when computer is taking its turn
+let isFastForward = false;  // True when fast forward is enabled
 
 // Game configuration for each map size
 interface GameConfig {
@@ -107,6 +111,7 @@ function init(): void {
     const tooltipEl = document.getElementById('tooltip');
     const turnIndicatorEl = document.getElementById('turn-indicator');
     const endTurnBtn = document.getElementById('end-turn-btn');
+    const fastForwardBtn = document.getElementById('fast-forward-btn');
     const combatLogEl = document.getElementById('combat-log');
 
     if (!svgEl || !smallBtn || !mediumBtn || !largeBtn || !statsEl || !tooltipEl) {
@@ -119,6 +124,7 @@ function init(): void {
     tooltipElement = tooltipEl;
     turnIndicatorElement = turnIndicatorEl || createTurnIndicator();
     endTurnButton = (endTurnBtn as HTMLButtonElement) || createEndTurnButton();
+    fastForwardButton = (fastForwardBtn as HTMLButtonElement) || createFastForwardButton();
     combatLogElement = combatLogEl || createCombatLog();
 
     // Set up event listeners for size buttons
@@ -142,6 +148,9 @@ function init(): void {
 
     // Set up End Turn button
     endTurnButton.addEventListener('click', handleEndTurn);
+
+    // Set up Fast Forward button
+    fastForwardButton.addEventListener('click', toggleFastForward);
 
     // Set initial active button
     updateActiveButton(mediumBtn);
@@ -179,6 +188,30 @@ function createEndTurnButton(): HTMLButtonElement {
         controls.appendChild(button);
     }
     return button;
+}
+
+/**
+ * Create Fast Forward button if it doesn't exist in DOM
+ */
+function createFastForwardButton(): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.id = 'fast-forward-btn';
+    button.className = 'fast-forward-btn';
+    button.textContent = 'Fast Forward';
+    const controls = document.querySelector('.controls');
+    if (controls) {
+        controls.appendChild(button);
+    }
+    return button;
+}
+
+/**
+ * Toggle fast forward mode
+ */
+function toggleFastForward(): void {
+    isFastForward = !isFastForward;
+    fastForwardButton.classList.toggle('active', isFastForward);
+    fastForwardButton.textContent = isFastForward ? 'Fast Forward ON' : 'Fast Forward';
 }
 
 /**
@@ -247,7 +280,19 @@ function generateAndRenderNewMap(): void {
     updateStats();
     clearCombatLog();
 
+    // Log which team is the human player
+    const humanTeam = teams.find(t => t.isHuman);
+    if (humanTeam) {
+        logCombatResult(`You are playing as ${humanTeam.name}`);
+    }
+
     console.log(`Started new game with ${currentMap.territories.length} territories for ${teams.length} teams`);
+
+    // If first player is computer, run computer turns
+    const firstTeam = getCurrentTeam(gameState);
+    if (!firstTeam.isHuman) {
+        runComputerTurns();
+    }
 }
 
 /**
@@ -258,14 +303,23 @@ function handleHexClick(clickedTerritory: Territory, hex: Hex, event: MouseEvent
         return;
     }
 
+    // Don't allow clicks during computer's turn
+    if (isComputerPlaying) {
+        return;
+    }
+
+    // Don't allow clicks if it's not a human player's turn
+    const currentTeam = getCurrentTeam(gameState);
+    if (!currentTeam.isHuman) {
+        return;
+    }
+
     // Always get fresh territory data from gameState to ensure we have current ownership
     const territory = gameState.territories.find(t => t.id === clickedTerritory.id);
     if (!territory) {
         console.error('Territory not found:', clickedTerritory.id);
         return;
     }
-
-    const currentTeam = getCurrentTeam(gameState);
 
     // If clicking on own territory
     if (territory.owner === gameState.currentTeamIndex) {
@@ -352,7 +406,19 @@ function handleEndTurn(): void {
         return;
     }
 
-    const previousTeam = getCurrentTeam(gameState);
+    // Don't allow ending turn during computer's turn
+    if (isComputerPlaying) {
+        return;
+    }
+
+    // Only allow human player to end their turn
+    const currentTeam = getCurrentTeam(gameState);
+    if (!currentTeam.isHuman) {
+        console.warn('handleEndTurn called but current team is not human');
+        return;
+    }
+
+    const previousTeam = currentTeam;
     const resupplyAmount = calculateResupply(gameState);
 
     // End the turn
@@ -379,9 +445,204 @@ function handleEndTurn(): void {
     // Check for game over
     if (gameState.phase === 'gameOver' && gameState.winner !== null) {
         showVictory(gameState.winner);
+        return;
     }
 
     console.log(`Turn ${gameState.turnNumber}: ${getCurrentTeam(gameState).name}'s turn`);
+
+    // If next player is computer, run computer turns
+    const nextTeam = getCurrentTeam(gameState);
+    if (!nextTeam.isHuman) {
+        runComputerTurns();
+    }
+}
+
+/**
+ * Run computer turns until it's a human player's turn
+ */
+async function runComputerTurns(): Promise<void> {
+    if (!gameState || gameState.phase === 'gameOver') {
+        return;
+    }
+
+    isComputerPlaying = true;
+    endTurnButton.disabled = true;
+
+    // Loop through computer players until we reach a human
+    while (gameState && gameState.winner === null) {
+        const currentTeam = getCurrentTeam(gameState);
+
+        // If current team is human, stop and let them play
+        if (currentTeam.isHuman) {
+            // Verify human still has territories
+            const humanTerritories = gameState.territories.filter(t => t.owner === currentTeam.id);
+            if (humanTerritories.length === 0) {
+                // Human has been eliminated, show defeat
+                showDefeat();
+                break;
+            }
+            break;
+        }
+
+        // Update UI to show computer is thinking
+        updateTurnIndicatorForComputer();
+
+        // Execute computer's turn
+        await executeComputerTurn();
+
+        // Check for game over
+        if (gameState.winner !== null) {
+            showVictory(gameState.winner);
+            break;
+        }
+    }
+
+    isComputerPlaying = false;
+    endTurnButton.disabled = false;
+    updateTurnIndicator();
+}
+
+/**
+ * Show defeat message when human player is eliminated
+ */
+function showDefeat(): void {
+    if (!gameState) return;
+
+    const humanTeam = gameState.teams.find(t => t.isHuman);
+    if (!humanTeam) return;
+
+    logCombatResult(`${humanTeam.name} has been eliminated!`);
+
+    // Create defeat overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'victory-overlay';
+    overlay.innerHTML = `
+        <div class="victory-content">
+            <h2 style="color: #ff6b6b">Defeat!</h2>
+            <p>${humanTeam.name} has been eliminated</p>
+            <button onclick="this.parentElement.parentElement.remove()">Close</button>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+}
+
+/**
+ * Execute a single computer player's turn
+ */
+async function executeComputerTurn(): Promise<void> {
+    if (!gameState) return;
+
+    const currentTeam = getCurrentTeam(gameState);
+    console.log(`Computer turn: ${currentTeam.name}`);
+
+    // Add a small delay before starting attacks
+    await delay(500);
+
+    let attacksThisTurn = 0;
+
+    // Attack loop
+    while (shouldContinueAttacking(gameState, attacksThisTurn)) {
+        const attack = findBestAttack(gameState);
+        if (!attack) break;
+
+        const source = gameState.territories.find(t => t.id === attack.sourceId);
+        const target = gameState.territories.find(t => t.id === attack.targetId);
+
+        if (!source || !target) break;
+
+        // Visual feedback - highlight attacking territories
+        selectTerritoryVisual(svgElement, source.id);
+        highlightValidTargets(svgElement, [target.id]);
+
+        // Small delay to show selection
+        await delay(300);
+
+        // Execute the attack
+        gameState = attemptAttack(gameState, target.id);
+        attacksThisTurn++;
+
+        // Show combat result
+        if (gameState.lastCombatResult) {
+            const result = gameState.lastCombatResult;
+            logCombatResult(formatCombatResult(result, source.name, target.name));
+
+            console.log(`Computer attack: ${source.name} vs ${target.name}`);
+            console.log(`Result: ${result.attackerWins ? 'Victory!' : 'Defended'}`);
+
+            // Show combat animation
+            await showCombatAnimation(svgElement, result, source.id, target.id);
+
+            // Update territory displays
+            const updatedSource = gameState.territories.find(t => t.id === source.id);
+            const updatedTarget = gameState.territories.find(t => t.id === target.id);
+            if (updatedSource) updateTerritoryDisplay(svgElement, updatedSource);
+            if (updatedTarget) updateTerritoryDisplay(svgElement, updatedTarget);
+        }
+
+        // Clear selection
+        deselectAll(svgElement);
+        clearHighlights(svgElement);
+
+        // Update stats
+        updateStats();
+
+        // Check for game over
+        if (gameState.winner !== null) {
+            return;
+        }
+
+        // Delay between attacks for visibility
+        await delay(400);
+    }
+
+    // End computer's turn
+    const previousTeam = getCurrentTeam(gameState);
+    const resupplyAmount = calculateResupply(gameState);
+
+    gameState = endTurn(gameState);
+
+    // Log resupply
+    logCombatResult(`${previousTeam.name} received ${resupplyAmount} reinforcements`);
+
+    // Re-render all territories
+    if (currentMap) {
+        for (const territory of gameState.territories) {
+            updateTerritoryDisplay(svgElement, territory);
+        }
+    }
+
+    // Update stats
+    updateStats();
+
+    console.log(`Computer ${previousTeam.name} ended turn`);
+
+    // Small delay before next player
+    await delay(300);
+}
+
+/**
+ * Update turn indicator to show computer is playing
+ */
+function updateTurnIndicatorForComputer(): void {
+    if (!gameState) return;
+
+    const currentTeam = getCurrentTeam(gameState);
+
+    turnIndicatorElement.innerHTML = `
+        <span class="turn-number">Turn ${gameState.turnNumber}</span>
+        <span class="team-name" style="color: ${currentTeam.color}">${currentTeam.name}</span>
+        <span class="phase-info">Computer thinking...</span>
+    `;
+    turnIndicatorElement.style.borderColor = currentTeam.color;
+}
+
+/**
+ * Utility function for delays
+ * When fast forward is enabled, delays are reduced to minimum
+ */
+function delay(ms: number): Promise<void> {
+    const actualDelay = isFastForward ? Math.min(ms, 50) : ms;
+    return new Promise(resolve => setTimeout(resolve, actualDelay));
 }
 
 /**
@@ -458,13 +719,17 @@ function updateTurnIndicator(): void {
         turnIndicatorElement.style.borderColor = '#888';
         endTurnButton.disabled = true;
     } else {
+        const phaseInfo = currentTeam.isHuman
+            ? 'Your turn - Select a territory to attack from'
+            : 'Computer thinking...';
+
         turnIndicatorElement.innerHTML = `
             <span class="turn-number">Turn ${gameState.turnNumber}</span>
             <span class="team-name" style="color: ${currentTeam.color}">${currentTeam.name}</span>
-            <span class="phase-info">Select a territory to attack from</span>
+            <span class="phase-info">${phaseInfo}</span>
         `;
         turnIndicatorElement.style.borderColor = currentTeam.color;
-        endTurnButton.disabled = false;
+        endTurnButton.disabled = !currentTeam.isHuman || isComputerPlaying;
     }
 }
 
