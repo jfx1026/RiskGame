@@ -2,8 +2,9 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Risk Game - Hexagonal Strategy</title>
+    <link rel="stylesheet" href="./src/design-tokens.css">
     <style>
         * {
             box-sizing: border-box;
@@ -11,150 +12,207 @@
             padding: 0;
         }
 
+        html, body {
+            height: 100%;
+            overflow: hidden;
+        }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #1a1a2e;
-            min-height: 100vh;
+            font-family: var(--font-family);
+            background: var(--color-bg-page);
+            display: flex;
+            flex-direction: row;
+        }
+
+        /* ========== SIDEBAR ========== */
+        .sidebar {
+            width: 100px;
+            background: var(--color-bg-page);
             display: flex;
             flex-direction: column;
-            align-items: center;
-            padding: 20px;
+            padding: var(--space-sm);
+            padding-top: var(--safe-area-top);
+            padding-bottom: var(--safe-area-bottom);
+            padding-left: var(--safe-area-left);
+            position: relative;
         }
 
-        header {
-            text-align: center;
-            margin-bottom: 20px;
+        .sidebar-top {
+            margin-bottom: var(--space-lg);
         }
 
-        h1 {
-            color: #eee;
-            font-size: 2rem;
-            margin-bottom: 10px;
-        }
-
-        .controls {
+        .team-stats {
+            flex: 1;
             display: flex;
-            gap: 10px;
-            margin-bottom: 15px;
-            flex-wrap: wrap;
+            flex-direction: column;
             justify-content: center;
+            gap: var(--space-sm);
         }
 
-        button {
-            background: #4a4a8a;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            font-size: 1rem;
-            border-radius: 6px;
+        .sidebar-bottom {
+            position: absolute;
+            bottom: var(--space-sm);
+            left: var(--space-sm);
+            right: var(--space-sm);
+        }
+
+        .team-stat-row {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            padding: var(--space-xs);
+            border-radius: var(--radius-sm);
+            transition: background var(--transition-fast);
+        }
+
+        .team-stat-row.current-turn {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .team-hex-icon {
+            width: 28px;
+            height: 32px;
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .team-hex-icon svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .team-hex-icon .human-indicator {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 12px;
+            color: rgba(0, 0, 0, 0.7);
+        }
+
+        .team-numbers {
+            font-size: var(--font-size-xs);
+            color: var(--color-text-secondary);
+            white-space: nowrap;
+        }
+
+        .team-numbers .territories {
+            color: var(--color-text-primary);
+            font-weight: var(--font-weight-bold);
+        }
+
+
+        /* ========== MAIN CONTENT ========== */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            padding: var(--space-sm);
+            padding-top: var(--safe-area-top);
+            padding-right: var(--safe-area-right);
+            padding-bottom: var(--safe-area-bottom);
+        }
+
+        /* ========== CORNER BUTTONS ========== */
+        .corner-btn {
+            position: absolute;
+            width: 48px;
+            height: 48px;
+            min-height: var(--touch-target-min);
+            min-width: var(--touch-target-min);
+            background: var(--color-bg-panel);
+            border: 2px solid var(--color-text-muted);
+            border-radius: var(--radius-md);
+            color: var(--color-text-secondary);
             cursor: pointer;
-            transition: background 0.2s, transform 0.1s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: background var(--transition-fast), border-color var(--transition-fast);
+            z-index: 10;
         }
 
-        button:hover {
-            background: #5a5a9a;
+        .corner-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--color-text-primary);
+            color: var(--color-text-primary);
         }
 
-        button:active {
-            transform: scale(0.98);
+        .corner-btn:active {
+            transform: scale(0.95);
         }
 
-        button:focus {
-            outline: 2px solid #8a8aca;
-            outline-offset: 2px;
+        .btn-back {
+            top: var(--space-sm);
+            left: var(--space-sm);
+            border-radius: var(--radius-md) var(--radius-sm) var(--radius-sm) var(--radius-md);
+            padding-left: 4px;
         }
 
-        button:disabled {
-            background: #3a3a5a;
-            cursor: not-allowed;
+        .btn-surrender {
+            top: var(--space-sm);
+            right: var(--space-sm);
+        }
+
+        .btn-fast-forward {
+            bottom: var(--space-sm);
+            right: var(--space-sm);
+        }
+
+        .btn-fast-forward.active {
+            background: var(--color-btn-warning);
+            border-color: var(--color-btn-warning);
+            color: var(--color-text-inverse);
+        }
+
+        .btn-end-turn {
+            bottom: var(--space-sm);
+            left: var(--space-sm);
+            width: auto;
+            padding: 0 var(--space-lg);
+            font-size: var(--font-size-xs);
+            background: var(--color-btn-success);
+            border-color: var(--color-btn-success);
+            color: var(--color-text-inverse);
+        }
+
+        .btn-end-turn:hover {
+            background: var(--color-btn-success-hover);
+            border-color: var(--color-btn-success-hover);
+        }
+
+        .btn-end-turn:disabled {
+            background: var(--color-btn-primary-disabled);
+            border-color: var(--color-btn-primary-disabled);
             opacity: 0.6;
+            cursor: not-allowed;
         }
 
-        .size-btn.active {
-            background: #6a6aba;
-            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
-        }
-
-        .end-turn-btn {
-            background: #2e7d32;
-            margin-left: 20px;
-        }
-
-        .end-turn-btn:hover {
-            background: #388e3c;
-        }
-
-        .fast-forward-btn {
-            background: #1565c0;
-            margin-left: 10px;
-        }
-
-        .fast-forward-btn:hover {
-            background: #1976d2;
-        }
-
-        .fast-forward-btn.active {
-            background: #ff8f00;
-            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
-        }
-
-        .fast-forward-btn:disabled {
-            background: #3a3a5a;
-        }
-
-        /* Turn Indicator */
-        .turn-indicator {
-            background: rgba(0, 0, 0, 0.4);
-            border: 3px solid #888;
-            border-radius: 8px;
-            padding: 12px 24px;
-            margin-bottom: 15px;
-            text-align: center;
-            min-width: 300px;
-            transition: border-color 0.3s;
-        }
-
-        .turn-indicator .turn-number {
-            color: #888;
-            font-size: 0.875rem;
-            display: block;
-            margin-bottom: 4px;
-        }
-
-        .turn-indicator .team-name {
-            font-size: 1.25rem;
-            font-weight: bold;
-            display: block;
-            margin-bottom: 4px;
-        }
-
-        .turn-indicator .phase-info {
-            color: #aaa;
-            font-size: 0.875rem;
-        }
-
-        .turn-indicator .game-over {
-            color: #ff6b6b;
-            font-size: 1.5rem;
-            font-weight: bold;
-        }
-
+        /* ========== MAP CONTAINER ========== */
         #map-container {
-            background: #0f0f1a;
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            flex: 1;
+            background: var(--color-bg-surface);
+            border-radius: var(--radius-lg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            margin: 60px var(--space-sm) 60px var(--space-sm);
         }
 
         #map-svg {
             display: block;
+            max-width: 100%;
+            max-height: 100%;
         }
 
-        /* Hex styling - no stroke, solid fill */
+        /* ========== HEX STYLING ========== */
         .hex {
             stroke: none;
             cursor: pointer;
-            transition: filter 0.15s;
+            transition: filter var(--transition-fast);
         }
 
         .hex:hover {
@@ -168,27 +226,26 @@
 
         .hex-empty {
             cursor: default;
-            fill: #0f0f1a;
+            fill: var(--color-map-empty-hex);
         }
 
         .hex-empty:hover {
             filter: none;
         }
 
-        /* Territory boundary styling */
         .territory-border {
             pointer-events: none;
+            stroke: var(--color-map-territory-border);
+            stroke-width: 3;
         }
 
-        /* Selected territory gets white border */
         .territory-group.selected .territory-border {
-            stroke: #ffffff;
+            stroke: var(--color-map-selection-border);
             stroke-width: 4;
         }
 
-        /* Valid attack target highlighting */
         .territory-group.valid-target .territory-border {
-            stroke: #ff6b6b;
+            stroke: var(--color-map-valid-target-border);
             stroke-width: 4;
             animation: pulse-border 1s ease-in-out infinite;
         }
@@ -198,8 +255,8 @@
         }
 
         @keyframes pulse-border {
-            0%, 100% { stroke-width: 4; stroke: #ff6b6b; }
-            50% { stroke-width: 6; stroke: #ff8888; }
+            0%, 100% { stroke-width: 4; stroke: var(--color-map-valid-target-border); }
+            50% { stroke-width: 6; stroke: var(--color-map-valid-target-border-pulse); }
         }
 
         @keyframes pulse-brightness {
@@ -207,7 +264,6 @@
             50% { filter: brightness(1.2); }
         }
 
-        /* Combat flash animation */
         .territory-group.combat-flash .hex {
             animation: combat-flash 0.5s ease-out;
         }
@@ -220,41 +276,37 @@
             100% { filter: brightness(1.0); }
         }
 
-        /* Army dots styling */
         .army-dots {
             pointer-events: none;
         }
 
         .army-dot {
-            /* White dots with dark outline - styling handled in JS */
+            fill: var(--color-army-dot-fill);
+            stroke: var(--color-army-dot-stroke);
+            stroke-width: 1;
         }
 
         .army-dot-empty {
             fill: none !important;
-            stroke: rgba(0, 0, 0, 0.3);
+            stroke: var(--color-army-dot-empty-stroke);
             stroke-width: 1;
         }
 
-        .territory-group {
-            /* For grouping hexes by territory */
+        .territory-group.current-player .territory-border {
+            stroke-dasharray: 8, 4;
         }
 
-        .territory-group:focus-within .hex {
-            stroke: #fff;
-            stroke-width: 2.5;
-        }
-
-        /* Territory info tooltip */
+        /* ========== TOOLTIP ========== */
         #tooltip {
             position: fixed;
-            background: rgba(0, 0, 0, 0.85);
-            color: white;
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-size: 0.875rem;
+            background: var(--color-bg-tooltip);
+            color: var(--color-text-inverse);
+            padding: var(--space-sm) 12px;
+            border-radius: var(--radius-sm);
+            font-size: var(--font-size-xs);
             pointer-events: none;
             opacity: 0;
-            transition: opacity 0.15s;
+            transition: opacity var(--transition-fast);
             z-index: 1000;
             max-width: 200px;
         }
@@ -263,58 +315,14 @@
             opacity: 1;
         }
 
-        /* Stats display */
-        .stats {
-            color: #888;
-            font-size: 0.875rem;
-            margin-top: 10px;
-            text-align: center;
-        }
-
-        /* Combat Log */
-        .combat-log {
-            margin-top: 15px;
-            max-width: 600px;
-            width: 100%;
-            max-height: 150px;
-            overflow-y: auto;
-            background: rgba(0, 0, 0, 0.3);
-            border-radius: 8px;
-            padding: 10px;
-        }
-
-        .combat-log-entry {
-            color: #ccc;
-            font-size: 0.875rem;
-            padding: 4px 8px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            animation: slide-in 0.3s ease-out;
-        }
-
-        .combat-log-entry:first-child {
-            color: #fff;
-            font-weight: bold;
-        }
-
-        @keyframes slide-in {
-            from {
-                opacity: 0;
-                transform: translateY(-10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        /* Victory Overlay */
+        /* ========== MODALS ========== */
         .victory-overlay {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.8);
+            background: var(--color-bg-overlay);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -327,12 +335,13 @@
             to { opacity: 1; }
         }
 
-        .victory-content {
-            background: #1a1a2e;
-            border-radius: 16px;
-            padding: 40px 60px;
+        .victory-content,
+        .game-start-content {
+            background: var(--color-bg-modal);
+            border-radius: var(--radius-xl);
+            padding: var(--space-3xl) 60px;
             text-align: center;
-            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+            box-shadow: var(--shadow-modal);
             animation: pop-in 0.5s ease-out;
         }
 
@@ -347,134 +356,126 @@
             }
         }
 
-        .victory-content h2 {
-            font-size: 2.5rem;
-            margin-bottom: 15px;
+        .victory-content h2,
+        .game-start-content h2 {
+            font-size: var(--font-size-2xl);
+            color: var(--color-text-primary);
+            margin-bottom: var(--space-lg);
         }
 
-        .victory-content p {
-            color: #aaa;
-            font-size: 1.1rem;
+        .victory-content p,
+        .game-start-content p {
+            color: var(--color-text-secondary);
+            font-size: var(--font-size-md);
             margin-bottom: 25px;
         }
 
-        .victory-content button {
-            background: #4a4a8a;
-            font-size: 1.1rem;
-            padding: 14px 40px;
+        .text-danger {
+            color: var(--color-accent-danger);
         }
 
-        /* Current player indicator on territories */
-        .territory-group.current-player .territory-border {
-            stroke-dasharray: 8, 4;
-        }
-
-        /* Surrender button */
-        .surrender-btn {
-            background: #c62828;
-            margin-left: 10px;
-        }
-
-        .surrender-btn:hover {
-            background: #d32f2f;
-        }
-
-        /* Modal buttons row */
         .modal-buttons {
             display: flex;
-            gap: 15px;
+            gap: var(--space-lg);
             justify-content: center;
             margin-top: 25px;
         }
 
         .modal-buttons button {
             min-width: 100px;
+            min-height: var(--touch-target-min);
+            padding: 12px var(--space-2xl);
+            font-size: var(--font-size-sm);
+            border: none;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: background var(--transition-normal);
         }
 
         .modal-buttons .cancel-btn {
-            background: #555;
+            background: var(--color-btn-cancel);
+            color: var(--color-text-on-button);
         }
 
         .modal-buttons .cancel-btn:hover {
-            background: #666;
+            background: var(--color-btn-cancel-hover);
         }
 
         .modal-buttons .confirm-btn {
-            background: #c62828;
+            background: var(--color-btn-danger);
+            color: var(--color-text-on-button);
         }
 
         .modal-buttons .confirm-btn:hover {
-            background: #d32f2f;
+            background: var(--color-btn-danger-hover);
         }
 
-        /* Game start modal */
-        .game-start-content {
-            background: #1a1a2e;
-            border-radius: 16px;
-            padding: 40px 60px;
-            text-align: center;
-            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
-            animation: pop-in 0.5s ease-out;
+        .modal-buttons .primary-btn {
+            background: var(--color-btn-success);
+            color: var(--color-text-on-button);
         }
 
-        .game-start-content h2 {
-            font-size: 2rem;
-            color: #eee;
-            margin-bottom: 20px;
+        .modal-buttons .primary-btn:hover {
+            background: var(--color-btn-success-hover);
         }
 
         .game-start-content .team-announcement {
             font-size: 1.8rem;
-            font-weight: bold;
-            margin: 20px 0;
+            font-weight: var(--font-weight-bold);
+            margin: var(--space-xl) 0;
         }
 
-        .game-start-content p {
-            color: #aaa;
-            font-size: 1rem;
-            margin-bottom: 10px;
-        }
-
-        .game-start-content button {
-            margin-top: 20px;
-            background: #2e7d32;
-            font-size: 1.1rem;
-            padding: 14px 50px;
-        }
-
-        .game-start-content button:hover {
-            background: #388e3c;
+        /* ========== HIDDEN ELEMENTS (for JS compatibility) ========== */
+        #turn-indicator,
+        #stats,
+        #combat-log {
+            display: none;
         }
     </style>
 </head>
 <body>
-    <header>
-        <h1>Risk Game</h1>
-    </header>
+    <!-- Sidebar with team stats -->
+    <aside class="sidebar">
+        <div class="sidebar-top">
+            <button class="corner-btn btn-back" id="back-btn" aria-label="Back to menu">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+            </button>
+        </div>
+        <div class="team-stats" id="team-stats">
+            <!-- Team stats will be populated by JS -->
+        </div>
+        <div class="sidebar-bottom">
+            <button class="corner-btn btn-end-turn" id="end-turn-btn" aria-label="End your turn">
+                End Turn
+            </button>
+        </div>
+    </aside>
 
-    <div class="controls">
-        <button id="small-map-btn" class="size-btn" aria-label="Generate a small map">Small</button>
-        <button id="medium-map-btn" class="size-btn" aria-label="Generate a medium map">Medium</button>
-        <button id="large-map-btn" class="size-btn" aria-label="Generate a large map">Large</button>
-        <button id="end-turn-btn" class="end-turn-btn" aria-label="End your turn">End Turn</button>
-        <button id="fast-forward-btn" class="fast-forward-btn" aria-label="Speed up computer turns">Fast Forward</button>
-        <button id="surrender-btn" class="surrender-btn" aria-label="Surrender the game">Surrender</button>
-    </div>
+    <!-- Main content area -->
+    <main class="main-content">
+        <button class="corner-btn btn-surrender" id="surrender-btn" aria-label="Surrender">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M4 4v16h2v-6h3l1 1h7V7h-5l-1-1H6V4H4zm2 4h4l1 1h5v4h-5l-1-1H6V8z"/>
+            </svg>
+        </button>
 
-    <div id="turn-indicator" class="turn-indicator">
-        <span class="turn-number">Turn 1</span>
-        <span class="team-name">Loading...</span>
-        <span class="phase-info">Select a territory to attack from</span>
-    </div>
+        <div id="map-container">
+            <svg id="map-svg" role="img" aria-label="Hexagonal game map with territories"></svg>
+        </div>
 
-    <div id="map-container">
-        <svg id="map-svg" role="img" aria-label="Hexagonal game map with territories"></svg>
-    </div>
+        <button class="corner-btn btn-fast-forward" id="fast-forward-btn" aria-label="Fast forward">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/>
+            </svg>
+        </button>
+    </main>
 
-    <div class="stats" id="stats"></div>
-
-    <div id="combat-log" class="combat-log"></div>
-
+    <!-- Hidden elements for JS compatibility -->
+    <div id="turn-indicator"></div>
+    <div id="stats"></div>
+    <div id="combat-log"></div>
     <div id="tooltip" role="tooltip"></div>
 
     <noscript>
@@ -486,7 +487,6 @@
     <p id="error-message" style="color: #f88; text-align: center; margin-top: 20px; display: none;"></p>
 
     <script>
-        // Show error if modules fail to load (e.g., when opened via file://)
         window.addEventListener('error', function(e) {
             var msg = document.getElementById('error-message');
             if (msg) {

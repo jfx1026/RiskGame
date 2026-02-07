@@ -46,6 +46,8 @@ let endTurnButton: HTMLButtonElement;
 let fastForwardButton: HTMLButtonElement;
 let surrenderButton: HTMLButtonElement;
 let combatLogElement: HTMLElement;
+let teamStatsElement: HTMLElement;
+let backButton: HTMLButtonElement;
 
 // Current game state
 let currentMap: GeneratedMap | null = null;
@@ -108,9 +110,6 @@ const GAME_CONFIGS: Record<string, GameConfig> = {
 function init(): void {
     // Get DOM elements
     const svgEl = document.getElementById('map-svg');
-    const smallBtn = document.getElementById('small-map-btn');
-    const mediumBtn = document.getElementById('medium-map-btn');
-    const largeBtn = document.getElementById('large-map-btn');
     const statsEl = document.getElementById('stats');
     const tooltipEl = document.getElementById('tooltip');
     const turnIndicatorEl = document.getElementById('turn-indicator');
@@ -118,39 +117,24 @@ function init(): void {
     const fastForwardBtn = document.getElementById('fast-forward-btn');
     const surrenderBtn = document.getElementById('surrender-btn');
     const combatLogEl = document.getElementById('combat-log');
+    const teamStatsEl = document.getElementById('team-stats');
+    const backBtn = document.getElementById('back-btn');
 
-    if (!svgEl || !smallBtn || !mediumBtn || !largeBtn || !statsEl || !tooltipEl) {
+    if (!svgEl || !tooltipEl) {
         console.error('Required DOM elements not found');
         return;
     }
 
     svgElement = svgEl as unknown as SVGSVGElement;
-    statsElement = statsEl;
+    statsElement = statsEl || document.createElement('div');
     tooltipElement = tooltipEl;
-    turnIndicatorElement = turnIndicatorEl || createTurnIndicator();
+    turnIndicatorElement = turnIndicatorEl || document.createElement('div');
     endTurnButton = (endTurnBtn as HTMLButtonElement) || createEndTurnButton();
     fastForwardButton = (fastForwardBtn as HTMLButtonElement) || createFastForwardButton();
     surrenderButton = (surrenderBtn as HTMLButtonElement) || createSurrenderButton();
-    combatLogElement = combatLogEl || createCombatLog();
-
-    // Set up event listeners for size buttons
-    smallBtn.addEventListener('click', () => {
-        currentSize = 'small';
-        updateActiveButton(smallBtn);
-        generateAndRenderNewMap();
-    });
-
-    mediumBtn.addEventListener('click', () => {
-        currentSize = 'medium';
-        updateActiveButton(mediumBtn);
-        generateAndRenderNewMap();
-    });
-
-    largeBtn.addEventListener('click', () => {
-        currentSize = 'large';
-        updateActiveButton(largeBtn);
-        generateAndRenderNewMap();
-    });
+    combatLogElement = combatLogEl || document.createElement('div');
+    teamStatsElement = teamStatsEl || document.createElement('div');
+    backButton = (backBtn as HTMLButtonElement) || document.createElement('button');
 
     // Set up End Turn button
     endTurnButton.addEventListener('click', handleEndTurn);
@@ -161,13 +145,22 @@ function init(): void {
     // Set up Surrender button
     surrenderButton.addEventListener('click', handleSurrender);
 
-    // Set initial active button
-    updateActiveButton(mediumBtn);
+    // Set up Back button (placeholder - will navigate to menu later)
+    backButton.addEventListener('click', handleBack);
 
-    // Generate initial map
+    // Generate initial map with medium size
     generateAndRenderNewMap();
 
     console.log('Risk Game initialized');
+}
+
+/**
+ * Handle back button - placeholder for navigation to menu
+ */
+function handleBack(): void {
+    // For now, just start a new game
+    // Later this will navigate to a map size selection screen
+    generateAndRenderNewMap();
 }
 
 /**
@@ -329,13 +322,6 @@ function createCombatLog(): HTMLElement {
 /**
  * Update the active button styling
  */
-function updateActiveButton(activeBtn: Element): void {
-    document.querySelectorAll('.size-btn').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    activeBtn.classList.add('active');
-}
-
 // Track if SVG event listeners have been added
 let svgListenersInitialized = false;
 
@@ -839,14 +825,8 @@ async function executeComputerTurn(): Promise<void> {
 function updateTurnIndicatorForComputer(): void {
     if (!gameState) return;
 
-    const currentTeam = getCurrentTeam(gameState);
-
-    turnIndicatorElement.innerHTML = `
-        <span class="turn-number">Turn ${gameState.turnNumber}</span>
-        <span class="team-name" style="color: ${currentTeam.color}">${currentTeam.name}</span>
-        <span class="phase-info">Computer thinking...</span>
-    `;
-    turnIndicatorElement.style.setProperty('--turn-border', currentTeam.color);
+    // Update sidebar to highlight current team
+    updateTeamStatsSidebar();
 }
 
 /**
@@ -921,6 +901,7 @@ function updateTooltipPosition(event: MouseEvent): void {
 
 /**
  * Update the turn indicator display
+ * Now uses the sidebar to show current turn instead of a separate indicator
  */
 function updateTurnIndicator(): void {
     if (!gameState) return;
@@ -928,22 +909,13 @@ function updateTurnIndicator(): void {
     const currentTeam = getCurrentTeam(gameState);
 
     if (gameState.phase === 'gameOver') {
-        turnIndicatorElement.innerHTML = `<span class="game-over">Game Over!</span>`;
-        turnIndicatorElement.style.removeProperty('--turn-border');
         endTurnButton.disabled = true;
     } else {
-        const phaseInfo = currentTeam.isHuman
-            ? 'Your turn - Select a territory to attack from'
-            : 'Computer thinking...';
-
-        turnIndicatorElement.innerHTML = `
-            <span class="turn-number">Turn ${gameState.turnNumber}</span>
-            <span class="team-name" style="color: ${currentTeam.color}">${currentTeam.name}</span>
-            <span class="phase-info">${phaseInfo}</span>
-        `;
-        turnIndicatorElement.style.setProperty('--turn-border', currentTeam.color);
         endTurnButton.disabled = !currentTeam.isHuman || isComputerPlaying;
     }
+
+    // Update sidebar to highlight current team
+    updateTeamStatsSidebar();
 }
 
 /**
@@ -952,21 +924,57 @@ function updateTurnIndicator(): void {
 function updateStats(): void {
     if (!gameState) return;
 
-    const teamStats = gameState.teams
+    // Update sidebar team stats
+    updateTeamStatsSidebar();
+}
+
+/**
+ * Update the team stats sidebar with hexagon indicators
+ */
+function updateTeamStatsSidebar(): void {
+    if (!gameState || !teamStatsElement) return;
+
+    const currentTeam = getCurrentTeam(gameState);
+
+    const teamRows = gameState.teams
         .map(t => {
             const territoryCount = gameState!.territories.filter(ter => ter.owner === t.id).length;
             const totalArmies = gameState!.territories
                 .filter(ter => ter.owner === t.id)
                 .reduce((sum, ter) => sum + ter.armies, 0);
-            // Bold the human team's name
-            const teamName = t.isHuman
-                ? `<strong>${t.name.split(' ')[0]} (You)</strong>`
-                : t.name.split(' ')[0];
-            return `<span style="color: ${t.color}">${teamName}: ${territoryCount} (${totalArmies})</span>`;
-        })
-        .join(' | ');
 
-    statsElement.innerHTML = teamStats;
+            const isCurrentTurn = t.id === currentTeam.id && gameStarted;
+            const isEliminated = territoryCount === 0;
+
+            // Create hexagon SVG
+            const hexSvg = `
+                <svg viewBox="0 0 28 32" fill="${isEliminated ? '#333' : t.color}">
+                    <polygon points="14,0 28,8 28,24 14,32 0,24 0,8"/>
+                </svg>
+            `;
+
+            // Human indicator (person icon)
+            const humanIndicator = t.isHuman
+                ? `<span class="human-indicator">👤</span>`
+                : '';
+
+            return `
+                <div class="team-stat-row ${isCurrentTurn ? 'current-turn' : ''}" data-team-id="${t.id}">
+                    <div class="team-hex-icon">
+                        ${hexSvg}
+                        ${humanIndicator}
+                    </div>
+                    <div class="team-numbers">
+                        <span class="territories">${territoryCount}</span>
+                        <span class="separator"> : </span>
+                        <span class="armies">${totalArmies}</span>
+                    </div>
+                </div>
+            `;
+        })
+        .join('');
+
+    teamStatsElement.innerHTML = teamRows;
 }
 
 /**
