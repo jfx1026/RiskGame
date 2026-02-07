@@ -17,7 +17,6 @@ export interface RenderOptions {
     hexSize: number;
     padding: number;
     showLabels: boolean;
-    emptyTileColor: string;
     hexScale: number;  // Scale factor for hex size (1.0 = no gap, 0.95 = small gap)
 }
 
@@ -25,8 +24,7 @@ const DEFAULT_OPTIONS: RenderOptions = {
     hexSize: HEX_SIZE,
     padding: 40,
     showLabels: false,
-    emptyTileColor: '#0f0f1a',  // Match background for invisible empty tiles
-    hexScale: 1.0,              // No gap between hexes in same territory
+    hexScale: 1.0,  // No gap between hexes in same territory
 };
 
 export type HexClickHandler = (territory: Territory, hex: Hex, event: MouseEvent) => void;
@@ -84,7 +82,7 @@ export function renderMap(
 
         for (const hexKeyStr of map.emptyHexes) {
             const hex = parseHexKey(hexKeyStr);
-            const emptyHex = renderEmptyHex(hex, hexSize, opts.emptyTileColor);
+            const emptyHex = renderEmptyHex(hex, hexSize);
             emptyGroup.appendChild(emptyHex);
         }
 
@@ -188,10 +186,7 @@ function renderArmyDots(territory: Territory, hexSize: number): SVGGElement {
             dot.setAttribute('r', String(dotRadius));
 
             if (isFilled) {
-                // Filled dots: white with dark outline for visibility
-                dot.setAttribute('fill', '#ffffff');
-                dot.setAttribute('stroke', '#000000');
-                dot.setAttribute('stroke-width', '1');
+                // Filled dots: colors from design tokens (CSS .army-dot)
             } else {
                 // Empty dots: handled by CSS (.army-dot-empty)
                 dot.setAttribute('fill', 'none');
@@ -257,8 +252,6 @@ function createTerritoryBoundary(
     path.setAttribute('class', 'territory-border');
     path.setAttribute('d', pathData);
     path.setAttribute('fill', 'none');
-    path.setAttribute('stroke', '#1a1a2e');
-    path.setAttribute('stroke-width', '3');
     path.setAttribute('stroke-linecap', 'round');
     path.setAttribute('stroke-linejoin', 'round');
 
@@ -266,9 +259,9 @@ function createTerritoryBoundary(
 }
 
 /**
- * Render an empty/impassable hex
+ * Render an empty/impassable hex (fill from CSS token --color-map-empty-hex)
  */
-function renderEmptyHex(hex: Hex, hexSize: number, color: string): SVGPolygonElement {
+function renderEmptyHex(hex: Hex, hexSize: number): SVGPolygonElement {
     const center = hexToPixel(hex, hexSize);
     const corners = hexCorners(center, hexSize);
     const points = cornersToSvgPoints(corners);
@@ -276,7 +269,6 @@ function renderEmptyHex(hex: Hex, hexSize: number, color: string): SVGPolygonEle
     const polygon = createSvgElement('polygon') as SVGPolygonElement;
     polygon.setAttribute('class', 'hex hex-empty');
     polygon.setAttribute('points', points);
-    polygon.setAttribute('fill', color);
     polygon.setAttribute('data-hex-q', String(hex.q));
     polygon.setAttribute('data-hex-r', String(hex.r));
     polygon.setAttribute('aria-label', `Empty tile at ${hex.q}, ${hex.r}`);

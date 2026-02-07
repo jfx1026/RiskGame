@@ -8,7 +8,6 @@ const DEFAULT_OPTIONS = {
     hexSize: HEX_SIZE,
     padding: 40,
     showLabels: false,
-    emptyTileColor: '#0f0f1a', // Match background for invisible empty tiles
     hexScale: 1.0, // No gap between hexes in same territory
 };
 /**
@@ -50,7 +49,7 @@ export function renderMap(svgElement, map, options = {}) {
         emptyGroup.setAttribute('aria-label', 'Empty tiles');
         for (const hexKeyStr of map.emptyHexes) {
             const hex = parseHexKey(hexKeyStr);
-            const emptyHex = renderEmptyHex(hex, hexSize, opts.emptyTileColor);
+            const emptyHex = renderEmptyHex(hex, hexSize);
             emptyGroup.appendChild(emptyHex);
         }
         mainGroup.appendChild(emptyGroup);
@@ -135,10 +134,7 @@ function renderArmyDots(territory, hexSize) {
             dot.setAttribute('cy', String(y));
             dot.setAttribute('r', String(dotRadius));
             if (isFilled) {
-                // Filled dots: white with dark outline for visibility
-                dot.setAttribute('fill', '#ffffff');
-                dot.setAttribute('stroke', '#000000');
-                dot.setAttribute('stroke-width', '1');
+                // Filled dots: colors from design tokens (CSS .army-dot)
             }
             else {
                 // Empty dots: handled by CSS (.army-dot-empty)
@@ -192,23 +188,20 @@ function createTerritoryBoundary(hexes, hexKeySet, hexSize) {
     path.setAttribute('class', 'territory-border');
     path.setAttribute('d', pathData);
     path.setAttribute('fill', 'none');
-    path.setAttribute('stroke', '#1a1a2e');
-    path.setAttribute('stroke-width', '3');
     path.setAttribute('stroke-linecap', 'round');
     path.setAttribute('stroke-linejoin', 'round');
     return path;
 }
 /**
- * Render an empty/impassable hex
+ * Render an empty/impassable hex (fill from CSS token --color-map-empty-hex)
  */
-function renderEmptyHex(hex, hexSize, color) {
+function renderEmptyHex(hex, hexSize) {
     const center = hexToPixel(hex, hexSize);
     const corners = hexCorners(center, hexSize);
     const points = cornersToSvgPoints(corners);
     const polygon = createSvgElement('polygon');
     polygon.setAttribute('class', 'hex hex-empty');
     polygon.setAttribute('points', points);
-    polygon.setAttribute('fill', color);
     polygon.setAttribute('data-hex-q', String(hex.q));
     polygon.setAttribute('data-hex-r', String(hex.r));
     polygon.setAttribute('aria-label', `Empty tile at ${hex.q}, ${hex.r}`);
