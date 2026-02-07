@@ -1,0 +1,105 @@
+/**
+ * Design tokens for Risk Game
+ * Update these values when applying a new design from Figma.
+ * Use the same token names in Figma (e.g. in styles/variables) for easy handoff.
+ */
+
+:root {
+  /* ---------- Background & surface ---------- */
+  --color-bg-page: #1a1a2e;
+  --color-bg-surface: #0f0f1a;
+  --color-bg-panel: rgba(0, 0, 0, 0.4);
+  --color-bg-overlay: rgba(0, 0, 0, 0.8);
+  --color-bg-tooltip: rgba(0, 0, 0, 0.85);
+  --color-bg-combat-log: rgba(0, 0, 0, 0.3);
+  --color-bg-modal: #1a1a2e;
+
+  /* ---------- Text ---------- */
+  --color-text-primary: #eee;
+  --color-text-secondary: #aaa;
+  --color-text-muted: #888;
+  --color-text-inverse: #fff;
+  --color-text-on-button: white;
+
+  /* ---------- UI: Buttons ---------- */
+  --color-btn-primary: #4a4a8a;
+  --color-btn-primary-hover: #5a5a9a;
+  --color-btn-primary-active: #6a6aba;
+  --color-btn-primary-disabled: #3a3a5a;
+  --color-btn-focus-ring: #8a8aca;
+
+  --color-btn-success: #2e7d32;
+  --color-btn-success-hover: #388e3c;
+
+  --color-btn-info: #1565c0;
+  --color-btn-info-hover: #1976d2;
+  --color-btn-warning: #ff8f00;
+
+  --color-btn-danger: #c62828;
+  --color-btn-danger-hover: #d32f2f;
+
+  --color-btn-cancel: #555;
+  --color-btn-cancel-hover: #666;
+
+  /* ---------- UI: Turn indicator & borders ---------- */
+  --color-turn-border: #888;
+  --color-turn-border-game-over: #ff6b6b;
+
+  /* ---------- Map (SVG) ---------- */
+  --color-map-empty-hex: #0f0f1a;
+  --color-map-territory-border: #1a1a2e;
+  --color-map-selection-border: #ffffff;
+  --color-map-valid-target-border: #ff6b6b;
+  --color-map-valid-target-border-pulse: #ff8888;
+  --color-army-dot-fill: #ffffff;
+  --color-army-dot-stroke: #000000;
+  --color-army-dot-empty-stroke: rgba(0, 0, 0, 0.3);
+
+  /* ---------- Accent / semantic ---------- */
+  --color-accent-danger: #ff6b6b;
+  --color-accent-divider: rgba(255, 255, 255, 0.1);
+
+  /* ---------- Spacing ---------- */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 10px;
+  --space-lg: 15px;
+  --space-xl: 20px;
+  --space-2xl: 24px;
+  --space-3xl: 40px;
+
+  /* ---------- Border radius ---------- */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* ---------- Typography ---------- */
+  --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-size-xs: 0.875rem;
+  --font-size-sm: 1rem;
+  --font-size-md: 1.1rem;
+  --font-size-lg: 1.25rem;
+  --font-size-xl: 1.5rem;
+  --font-size-2xl: 2rem;
+  --font-size-3xl: 2.5rem;
+  --font-weight-normal: normal;
+  --font-weight-bold: bold;
+
+  /* ---------- Shadows ---------- */
+  --shadow-button-active: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+  --shadow-map: 0 4px 20px rgba(0, 0, 0, 0.5);
+  --shadow-modal: 0 8px 40px rgba(0, 0, 0, 0.5);
+
+  /* ---------- Transitions ---------- */
+  --transition-fast: 0.15s;
+  --transition-normal: 0.2s;
+  --transition-slow: 0.3s;
+
+  /* ---------- iOS / Touch ---------- */
+  --touch-target-min: 44px;
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+}
