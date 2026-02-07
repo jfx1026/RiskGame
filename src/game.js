@@ -170,13 +170,25 @@ export function startGame(map, teams) {
     return {
         teams,
         territories: map.territories,
-        currentTeamIndex: 0,
+        currentTeamIndex: 0, // Will be set when game actually begins
         selectedTerritory: null,
         phase: 'select',
         turnNumber: 1,
         lastCombatResult: null,
         winner: null,
         capturedThisTurn: false,
+        eliminationsThisTurn: 0,
+    };
+}
+/**
+ * Begin the game by randomly selecting who goes first
+ * Call this after the user clicks "Start Game"
+ */
+export function beginGame(state) {
+    const startingTeamIndex = Math.floor(Math.random() * state.teams.length);
+    return {
+        ...state,
+        currentTeamIndex: startingTeamIndex,
     };
 }
 /**
@@ -252,12 +264,22 @@ export function attemptAttack(state, targetId) {
     if (!canAttack(source, target)) {
         return state;
     }
+    // Track the defender's team before the attack
+    const defenderId = target.owner;
     // Execute the attack
     const combatResult = executeAttack(source, target, state.teams);
     // Check for victory
     const winner = checkVictory(state);
     // Track if territory was captured this turn
     const captured = state.capturedThisTurn || combatResult.attackerWins;
+    // Check if we eliminated a player (they now have 0 territories)
+    let eliminations = state.eliminationsThisTurn;
+    if (combatResult.attackerWins && defenderId !== undefined) {
+        const defenderTeam = state.teams[defenderId];
+        if (defenderTeam && defenderTeam.territories.length === 0) {
+            eliminations++;
+        }
+    }
     // Return to select phase after attack
     return {
         ...state,
@@ -266,6 +288,7 @@ export function attemptAttack(state, targetId) {
         lastCombatResult: combatResult,
         winner,
         capturedThisTurn: captured,
+        eliminationsThisTurn: eliminations,
     };
 }
 /**
@@ -300,6 +323,7 @@ export function endTurn(state) {
         lastCombatResult: null,
         winner,
         capturedThisTurn: false, // Reset for next player's turn
+        eliminationsThisTurn: 0, // Reset for next player's turn
     };
 }
 /**
@@ -317,6 +341,8 @@ export function calculateResupply(state) {
     if (!state.capturedThisTurn) {
         reinforcements = Math.floor(reinforcements / 2);
     }
+    // Bonus for eliminating players: +3 per elimination
+    reinforcements += state.eliminationsThisTurn * 3;
     // Minimum of 1 reinforcement (if they have any territories)
     return totalTerritories > 0 ? Math.max(1, reinforcements) : 0;
 }

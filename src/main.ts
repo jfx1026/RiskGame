@@ -25,6 +25,7 @@ import {
     assignTerritoriesToTeams,
     initializeTerritories,
     startGame,
+    beginGame,
     getCurrentTeam,
     selectTerritory,
     deselectTerritory,
@@ -52,6 +53,8 @@ let gameState: GameState | null = null;
 let currentSize: 'small' | 'medium' | 'large' = 'medium';
 let isComputerPlaying = false;  // True when computer is taking its turn
 let isFastForward = false;  // True when fast forward is enabled
+let gameGeneration = 0;  // Incremented each new game to invalidate stale async ops
+let gameStarted = false;  // True only after user clicks "Start Game"
 
 // Game configuration for each map size
 interface GameConfig {
@@ -92,7 +95,7 @@ const GAME_CONFIGS: Record<string, GameConfig> = {
             territoryCount: 58,
             minTerritorySize: 3,
             maxTerritorySize: 7,
-            emptyTilePercent: 10,
+            emptyTilePercent: 15,
         },
         teamCount: 6,
         armiesPerTeam: 50,
@@ -260,7 +263,7 @@ function showSurrenderConfirmation(): void {
     overlay.id = 'surrender-modal';
     overlay.innerHTML = `
         <div class="victory-content">
-            <h2 style="color: #ff6b6b">Surrender?</h2>
+            <h2 class="text-danger">Surrender?</h2>
             <p>Are you sure you want to surrender the game?</p>
             <div class="modal-buttons">
                 <button class="cancel-btn" onclick="document.getElementById('surrender-modal').remove()">Cancel</button>
@@ -299,7 +302,7 @@ function executeSurrender(): void {
     overlay.className = 'victory-overlay';
     overlay.innerHTML = `
         <div class="victory-content">
-            <h2 style="color: #ff6b6b">Surrendered</h2>
+            <h2 class="text-danger">Surrendered</h2>
             <p>${humanTeam.name} has surrendered the game</p>
             <button onclick="this.parentElement.parentElement.remove()">Close</button>
         </div>
@@ -340,6 +343,18 @@ let svgListenersInitialized = false;
  * Generate and render a new map, starting a new game
  */
 function generateAndRenderNewMap(): void {
+    // Increment game generation to invalidate any pending async operations
+    gameGeneration++;
+
+    // Reset game state flags
+    isComputerPlaying = false;
+    isFastForward = false;
+    gameStarted = false;  // Game hasn't started until user clicks "Start Game"
+
+    // Remove any existing game modals
+    document.getElementById('game-start-modal')?.remove();
+    document.querySelectorAll('.victory-overlay').forEach(el => el.remove());
+
     // Get config for current size
     const gameConfig = GAME_CONFIGS[currentSize];
 
@@ -405,20 +420,29 @@ function showGameStartMessage(humanTeam: Team): void {
     // Add event listener for start button
     document.getElementById('start-game-btn')?.addEventListener('click', () => {
         overlay.remove();
+
+        if (!gameState) return;
+
+        // NOW the game officially starts
+        gameStarted = true;
+
+        // Randomly select who goes first
+        gameState = beginGame(gameState);
+
         logCombatResult(`You are playing as ${humanTeam.name}`);
 
-        // If first player is computer, run computer turns
-        if (gameState) {
-            const firstTeam = getCurrentTeam(gameState);
-            console.log(`[showGameStartMessage] First team: ${firstTeam.name}, isHuman: ${firstTeam.isHuman}, index: ${gameState.currentTeamIndex}`);
-            console.log(`[showGameStartMessage] Human team: ${humanTeam.name}, id: ${humanTeam.id}`);
+        // Reset state flags
+        isComputerPlaying = false;
+        endTurnButton.disabled = false;
 
-            if (!firstTeam.isHuman) {
-                console.log(`[showGameStartMessage] Starting computer turns...`);
-                runComputerTurns();
-            } else {
-                console.log(`[showGameStartMessage] Human goes first, waiting for input`);
-            }
+        // Update UI to show who's going first
+        updateTurnIndicator();
+        updateStats();
+
+        // If first player is computer, run computer turns
+        const firstTeam = getCurrentTeam(gameState);
+        if (!firstTeam.isHuman) {
+            runComputerTurns();
         }
     });
 }
@@ -442,6 +466,11 @@ function handleSvgBackgroundClick(event: MouseEvent): void {
  */
 function handleHexClick(clickedTerritory: Territory, hex: Hex, event: MouseEvent): void {
     if (!gameState || gameState.phase === 'gameOver') {
+        return;
+    }
+
+    // Don't allow clicks until game has started
+    if (!gameStarted) {
         return;
     }
 
@@ -548,6 +577,11 @@ function handleEndTurn(): void {
         return;
     }
 
+    // Don't allow ending turn until game has started
+    if (!gameStarted) {
+        return;
+    }
+
     // Don't allow ending turn during computer's turn
     if (isComputerPlaying) {
         return;
@@ -610,16 +644,21 @@ async function runComputerTurns(): Promise<void> {
         return;
     }
 
-    // Prevent concurrent calls
-    if (isComputerPlaying) {
-        console.warn('[runComputerTurns] Already running, ignoring duplicate call');
+    // Don't run until game has started
+    if (!gameStarted) {
         return;
     }
 
+    // Prevent concurrent calls
+    if (isComputerPlaying) {
+        return;
+    }
+
+    // Capture current game generation to detect if game changes mid-execution
+    const thisGameGeneration = gameGeneration;
+
     isComputerPlaying = true;
     endTurnButton.disabled = true;
-
-    console.log(`[runComputerTurns] Starting. Current team index: ${gameState.currentTeamIndex}`);
 
     // Safety limit to prevent infinite loops
     let iterations = 0;
@@ -627,22 +666,23 @@ async function runComputerTurns(): Promise<void> {
 
     // Loop through computer players until we reach a human
     while (gameState && gameState.winner === null && iterations < maxIterations) {
+        // Check if a new game was started
+        if (gameGeneration !== thisGameGeneration) {
+            return;
+        }
+
         iterations++;
         const currentTeam = getCurrentTeam(gameState);
-
-        console.log(`[runComputerTurns] Iteration ${iterations}: Team ${currentTeam.name}, isHuman: ${currentTeam.isHuman}, index: ${gameState.currentTeamIndex}`);
 
         // If current team is human, stop and let them play
         if (currentTeam.isHuman) {
             // Verify human still has territories
             const humanTerritories = gameState.territories.filter(t => t.owner === currentTeam.id);
-            console.log(`[runComputerTurns] Human team ${currentTeam.name} has ${humanTerritories.length} territories`);
             if (humanTerritories.length === 0) {
                 // Human has been eliminated, show defeat
                 showDefeat();
                 break;
             }
-            console.log(`[runComputerTurns] Breaking loop - human's turn`);
             break;
         }
 
@@ -652,7 +692,10 @@ async function runComputerTurns(): Promise<void> {
         // Execute computer's turn
         await executeComputerTurn();
 
-        console.log(`[runComputerTurns] After executeComputerTurn, currentTeamIndex: ${gameState.currentTeamIndex}`);
+        // Check again if game changed during async execution
+        if (gameGeneration !== thisGameGeneration) {
+            return;
+        }
 
         // Check for game over
         if (gameState.winner !== null) {
@@ -661,22 +704,11 @@ async function runComputerTurns(): Promise<void> {
         }
     }
 
-    if (iterations >= maxIterations) {
-        console.error('[runComputerTurns] Hit max iterations! Something is wrong with turn cycling.');
-    }
-
-    isComputerPlaying = false;
-    endTurnButton.disabled = false;
-    updateTurnIndicator();
-
-    if (gameState) {
-        const finalTeam = getCurrentTeam(gameState);
-        console.log(`[runComputerTurns] Finished. Now it's ${finalTeam.name}'s turn (isHuman: ${finalTeam.isHuman})`);
-
-        // Safety check: if we finished but it's not a human's turn, something went wrong
-        if (!finalTeam.isHuman && gameState.winner === null) {
-            console.error('[runComputerTurns] ERROR: Finished but current team is not human!');
-        }
+    // Only update state if this is still the current game
+    if (gameGeneration === thisGameGeneration) {
+        isComputerPlaying = false;
+        endTurnButton.disabled = false;
+        updateTurnIndicator();
     }
 }
 
@@ -696,7 +728,7 @@ function showDefeat(): void {
     overlay.className = 'victory-overlay';
     overlay.innerHTML = `
         <div class="victory-content">
-            <h2 style="color: #ff6b6b">Defeat!</h2>
+            <h2 class="text-danger">Defeat!</h2>
             <p>${humanTeam.name} has been eliminated</p>
             <button onclick="this.parentElement.parentElement.remove()">Close</button>
         </div>
@@ -814,7 +846,7 @@ function updateTurnIndicatorForComputer(): void {
         <span class="team-name" style="color: ${currentTeam.color}">${currentTeam.name}</span>
         <span class="phase-info">Computer thinking...</span>
     `;
-    turnIndicatorElement.style.borderColor = currentTeam.color;
+    turnIndicatorElement.style.setProperty('--turn-border', currentTeam.color);
 }
 
 /**
@@ -843,7 +875,7 @@ function handleTerritoryHover(territory: Territory | null, event: MouseEvent): v
         if (gameState.selectedTerritory !== null) {
             const targets = getSelectedTerritoryTargets(gameState);
             if (targets.some(t => t.id === territory.id)) {
-                attackInfo = '<br><span style="color: #ff6b6b;">Click to attack!</span>';
+                attackInfo = '<br><span class="text-danger">Click to attack!</span>';
             }
         }
 
@@ -897,7 +929,7 @@ function updateTurnIndicator(): void {
 
     if (gameState.phase === 'gameOver') {
         turnIndicatorElement.innerHTML = `<span class="game-over">Game Over!</span>`;
-        turnIndicatorElement.style.borderColor = '#888';
+        turnIndicatorElement.style.removeProperty('--turn-border');
         endTurnButton.disabled = true;
     } else {
         const phaseInfo = currentTeam.isHuman
@@ -909,7 +941,7 @@ function updateTurnIndicator(): void {
             <span class="team-name" style="color: ${currentTeam.color}">${currentTeam.name}</span>
             <span class="phase-info">${phaseInfo}</span>
         `;
-        turnIndicatorElement.style.borderColor = currentTeam.color;
+        turnIndicatorElement.style.setProperty('--turn-border', currentTeam.color);
         endTurnButton.disabled = !currentTeam.isHuman || isComputerPlaying;
     }
 }
