@@ -236,17 +236,21 @@
         .territory-border {
             pointer-events: none;
             stroke: var(--color-map-territory-border);
-            stroke-width: 3;
+            stroke-width: 5;
+        }
+
+        .territory-inner-stroke {
+            pointer-events: none;
         }
 
         .territory-group.selected .territory-border {
             stroke: var(--color-map-selection-border);
-            stroke-width: 4;
+            stroke-width: 6;
         }
 
         .territory-group.valid-target .territory-border {
             stroke: var(--color-map-valid-target-border);
-            stroke-width: 4;
+            stroke-width: 6;
             animation: pulse-border 1s ease-in-out infinite;
         }
 
@@ -255,8 +259,8 @@
         }
 
         @keyframes pulse-border {
-            0%, 100% { stroke-width: 4; stroke: var(--color-map-valid-target-border); }
-            50% { stroke-width: 6; stroke: var(--color-map-valid-target-border-pulse); }
+            0%, 100% { stroke-width: 6; stroke: var(--color-map-valid-target-border); }
+            50% { stroke-width: 8; stroke: var(--color-map-valid-target-border-pulse); }
         }
 
         @keyframes pulse-brightness {

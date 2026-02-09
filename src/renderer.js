@@ -2,8 +2,9 @@
  * SVG Renderer for hexagonal map
  * Renders territories with proper grouping and accessibility features
  */
-import { hexToPixel, hexCorners, cornersToSvgPoints, getHexBounds, HEX_SIZE, parseHexKey, hexKey, hexNeighbors } from './hex.js';
+import { hexToPixel, hexCorners, getHexBounds, HEX_SIZE, parseHexKey, hexKey, hexNeighbors } from './hex.js';
 import { getTerritoryHexes } from './territory.js';
+import { BASE_TILE, OVER_CONNECTORS, UNDER_CONNECTORS, STROKE_CONNECTORS, TILE_VIEWBOX_SIZE, DIRECTION_NAMES } from './tilePaths.js';
 const DEFAULT_OPTIONS = {
     hexSize: HEX_SIZE,
     padding: 40,
@@ -61,7 +62,28 @@ export function renderMap(svgElement, map, options = {}) {
     }
 }
 /**
- * Render a single territory as an SVG group
+ * Calculate the scale factor to map tile viewBox to hex size
+ */
+function getTileScale(hexSize) {
+    // The tile viewBox is 118.58, and the hex inside spans roughly 72 units wide
+    // For a pointy-top hex, width = sqrt(3) * size ≈ 1.732 * size
+    // We want the tile hex to match our hex size
+    const tileHexWidth = 72; // approximate width of hex in tile viewBox
+    const targetHexWidth = Math.sqrt(3) * hexSize;
+    return targetHexWidth / tileHexWidth;
+}
+/**
+ * Create a path element with color replacement
+ */
+function createColoredPath(pathData, fillColor, className) {
+    const path = createSvgElement('path');
+    path.setAttribute('d', pathData);
+    path.setAttribute('fill', fillColor);
+    path.setAttribute('class', className);
+    return path;
+}
+/**
+ * Render a single territory as an SVG group using tile-based approach
  */
 function renderTerritory(territory, hexSize) {
     const group = createSvgElement('g');
@@ -71,80 +93,381 @@ function renderTerritory(territory, hexSize) {
     group.setAttribute('aria-label', `${territory.name}, ${territory.hexes.size} hexes, ${territory.armies} armies`);
     const hexes = getTerritoryHexes(territory);
     const hexKeySet = new Set(Array.from(territory.hexes));
-    // Draw filled hexes (no stroke)
+    // Calculate scale and offset for tiles
+    const scale = getTileScale(hexSize);
+    const tileCenter = TILE_VIEWBOX_SIZE / 2;
+    // Colors
+    const fillColor = territory.color;
+    const strokeColor = lightenColor(territory.color, 0.4);
+    // Layer 1: UNDER connectors (per hex, for each direction with same-territory neighbor)
     for (const hex of hexes) {
-        const hexElement = renderHex(hex, territory, hexSize);
-        group.appendChild(hexElement);
+        const center = hexToPixel(hex, hexSize);
+        const neighbors = hexNeighbors(hex);
+        for (let i = 0; i < 6; i++) {
+            const neighborKey = hexKey(neighbors[i]);
+            // Draw under connector if neighbor is in same territory
+            if (hexKeySet.has(neighborKey)) {
+                const direction = DIRECTION_NAMES[i];
+                const underPaths = UNDER_CONNECTORS[direction];
+                if (underPaths) {
+                    const connectorGroup = createSvgElement('g');
+                    connectorGroup.setAttribute('transform', `translate(${center.x}, ${center.y}) scale(${scale}) translate(${-tileCenter}, ${-tileCenter})`);
+                    for (const pathData of underPaths) {
+                        const path = createColoredPath(pathData, fillColor, 'tile-under');
+                        connectorGroup.appendChild(path);
+                    }
+                    group.appendChild(connectorGroup);
+                }
+            }
+        }
     }
-    // Draw territory boundary
-    const boundaryPath = createTerritoryBoundary(hexes, hexKeySet, hexSize);
-    if (boundaryPath) {
-        group.appendChild(boundaryPath);
+    // Layer 2: BASE tiles (for each hex)
+    for (const hex of hexes) {
+        const center = hexToPixel(hex, hexSize);
+        const neighbors = hexNeighbors(hex);
+        // Check if this hex is on the boundary
+        let isBoundaryHex = false;
+        for (let i = 0; i < 6; i++) {
+            if (!hexKeySet.has(hexKey(neighbors[i]))) {
+                isBoundaryHex = true;
+                break;
+            }
+        }
+        const tileGroup = createSvgElement('g');
+        tileGroup.setAttribute('transform', `translate(${center.x}, ${center.y}) scale(${scale}) translate(${-tileCenter}, ${-tileCenter})`);
+        // Base fill
+        const fillPath = createColoredPath(BASE_TILE.fill, fillColor, 'hex tile-base');
+        fillPath.setAttribute('data-territory-id', String(territory.id));
+        fillPath.setAttribute('data-hex-q', String(hex.q));
+        fillPath.setAttribute('data-hex-r', String(hex.r));
+        fillPath.setAttribute('tabindex', '0');
+        fillPath.setAttribute('role', 'button');
+        fillPath.setAttribute('aria-label', `Hex in ${territory.name}`);
+        tileGroup.appendChild(fillPath);
+        // Inner stroke ring - only for boundary hexes
+        if (isBoundaryHex) {
+            const strokePath = createColoredPath(BASE_TILE.stroke, strokeColor, 'tile-stroke');
+            strokePath.setAttribute('pointer-events', 'none');
+            tileGroup.appendChild(strokePath);
+        }
+        group.appendChild(tileGroup);
     }
-    // Draw army dots
+    // Layer 3: OVER connectors (per hex, for each direction with same-territory neighbor)
+    for (const hex of hexes) {
+        const center = hexToPixel(hex, hexSize);
+        const neighbors = hexNeighbors(hex);
+        for (let i = 0; i < 6; i++) {
+            const neighborKey = hexKey(neighbors[i]);
+            // Draw over connector if neighbor is in same territory
+            if (hexKeySet.has(neighborKey)) {
+                const direction = DIRECTION_NAMES[i];
+                const overPath = OVER_CONNECTORS[direction];
+                if (overPath) {
+                    const connectorGroup = createSvgElement('g');
+                    connectorGroup.setAttribute('transform', `translate(${center.x}, ${center.y}) scale(${scale}) translate(${-tileCenter}, ${-tileCenter})`);
+                    const path = createColoredPath(overPath, fillColor, 'tile-over');
+                    connectorGroup.appendChild(path);
+                    group.appendChild(connectorGroup);
+                }
+            }
+        }
+    }
+    // Layer 4: STROKE connectors (only at outer corners where territory meets empty space)
+    // Each STROKE_CONNECTORS[direction] has 2 paths: [0] for prev corner, [1] for next corner
+    // Draw path[0] only if prev direction (i-1) is empty
+    // Draw path[1] only if next direction (i+1) is empty
+    for (const hex of hexes) {
+        const center = hexToPixel(hex, hexSize);
+        const neighbors = hexNeighbors(hex);
+        for (let i = 0; i < 6; i++) {
+            const neighborKey = hexKey(neighbors[i]);
+            // Must have a same-territory neighbor in this direction
+            if (!hexKeySet.has(neighborKey))
+                continue;
+            // Check adjacent directions for empty space
+            const prevDir = (i + 5) % 6; // i - 1, wrapping
+            const nextDir = (i + 1) % 6;
+            const prevNeighborInTerritory = hexKeySet.has(hexKey(neighbors[prevDir]));
+            const nextNeighborInTerritory = hexKeySet.has(hexKey(neighbors[nextDir]));
+            const direction = DIRECTION_NAMES[i];
+            const strokePaths = STROKE_CONNECTORS[direction];
+            if (!strokePaths || strokePaths.length < 2)
+                continue;
+            const connectorGroup = createSvgElement('g');
+            connectorGroup.setAttribute('transform', `translate(${center.x}, ${center.y}) scale(${scale}) translate(${-tileCenter}, ${-tileCenter})`);
+            let hasPath = false;
+            // Draw first path only if next direction is empty (outer corner on that side)
+            if (!nextNeighborInTerritory) {
+                const path = createColoredPath(strokePaths[0], strokeColor, 'tile-connector-stroke');
+                path.setAttribute('pointer-events', 'none');
+                connectorGroup.appendChild(path);
+                hasPath = true;
+            }
+            // Draw second path only if prev direction is empty (outer corner on that side)
+            if (!prevNeighborInTerritory) {
+                const path = createColoredPath(strokePaths[1], strokeColor, 'tile-connector-stroke');
+                path.setAttribute('pointer-events', 'none');
+                connectorGroup.appendChild(path);
+                hasPath = true;
+            }
+            if (hasPath) {
+                group.appendChild(connectorGroup);
+            }
+        }
+    }
+    // Layer 5: Army dots
     if (territory.armyHex && territory.armies > 0) {
-        const armyGroup = renderArmyDots(territory, hexSize);
+        const armyHex = parseHexKey(territory.armyHex);
+        const armyCenter = hexToPixel(armyHex, hexSize);
+        const armyGroup = renderArmyDotsAtPoint(territory, armyCenter, hexSize);
         group.appendChild(armyGroup);
     }
     return group;
 }
 /**
- * Render army dots for a territory
+ * Render army dots at a specific center point
  * Shows filled dots for armies and empty (grey) dots for remaining capacity
- * Dots are arranged in rows, centered on the army display hex
+ * Dots are arranged in 2 columns (compact 2x3 grid)
+ * Uses 3D shadow effect for visual depth
  */
-function renderArmyDots(territory, hexSize) {
+function renderArmyDotsAtPoint(territory, center, hexSize) {
     const group = createSvgElement('g');
     group.setAttribute('class', 'army-dots');
-    if (!territory.armyHex)
-        return group;
-    const hex = parseHexKey(territory.armyHex);
-    const center = hexToPixel(hex, hexSize);
     const armies = territory.armies;
     const maxCapacity = territory.type === 'big' ? 10 : 7;
-    // Dot configuration
-    const dotRadius = hexSize * 0.12;
-    const dotSpacing = dotRadius * 2.5;
-    // Arrange dots in rows (max 5 per row) - use max capacity for layout
-    const dotsPerRow = 5;
-    const rows = [];
-    let remaining = maxCapacity;
-    while (remaining > 0) {
-        const dotsInThisRow = Math.min(remaining, dotsPerRow);
-        rows.push(dotsInThisRow);
-        remaining -= dotsInThisRow;
-    }
+    // Dot configuration - 2 columns (compact grid)
+    const dotRadius = hexSize * 0.14;
+    const dotSpacingX = dotRadius * 2.6;
+    const dotSpacingY = dotRadius * 2.2;
+    // Calculate grid: 2 columns, fill row by row
+    const cols = 2;
+    const totalDots = maxCapacity;
+    const fullRows = Math.floor(totalDots / cols);
+    const lastRowDots = totalDots % cols;
+    const totalRows = fullRows + (lastRowDots > 0 ? 1 : 0);
     // Calculate total height to center vertically
-    const totalHeight = (rows.length - 1) * dotSpacing;
+    const totalHeight = (totalRows - 1) * dotSpacingY;
     const startY = center.y - totalHeight / 2;
-    // Draw dots - track how many filled dots we've drawn
-    let filledCount = 0;
-    for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
-        const dotsInRow = rows[rowIndex];
-        const rowWidth = (dotsInRow - 1) * dotSpacing;
+    // Draw dots
+    let dotIndex = 0;
+    for (let row = 0; row < totalRows; row++) {
+        const dotsInThisRow = (row < fullRows) ? cols : lastRowDots;
+        const rowWidth = (dotsInThisRow - 1) * dotSpacingX;
         const startX = center.x - rowWidth / 2;
-        const y = startY + rowIndex * dotSpacing;
-        for (let dotIndex = 0; dotIndex < dotsInRow; dotIndex++) {
-            const x = startX + dotIndex * dotSpacing;
-            const isFilled = filledCount < armies;
-            // Create dot
+        const y = startY + row * dotSpacingY;
+        for (let col = 0; col < dotsInThisRow; col++) {
+            const x = startX + col * dotSpacingX;
+            const isFilled = dotIndex < armies;
+            if (isFilled) {
+                // Create shadow (offset dark circle)
+                const shadow = createSvgElement('circle');
+                shadow.setAttribute('class', 'army-dot-shadow');
+                shadow.setAttribute('cx', String(x + dotRadius * 0.15));
+                shadow.setAttribute('cy', String(y + dotRadius * 0.25));
+                shadow.setAttribute('r', String(dotRadius));
+                shadow.setAttribute('fill', 'rgba(0, 0, 0, 0.4)');
+                group.appendChild(shadow);
+            }
+            // Create main dot
             const dot = createSvgElement('circle');
             dot.setAttribute('class', isFilled ? 'army-dot' : 'army-dot army-dot-empty');
             dot.setAttribute('cx', String(x));
             dot.setAttribute('cy', String(y));
             dot.setAttribute('r', String(dotRadius));
-            if (isFilled) {
-                // Filled dots: colors from design tokens (CSS .army-dot)
-            }
-            else {
-                // Empty dots: handled by CSS (.army-dot-empty)
+            if (!isFilled) {
                 dot.setAttribute('fill', 'none');
             }
             group.appendChild(dot);
-            filledCount++;
+            dotIndex++;
         }
     }
     return group;
+}
+/**
+ * Render army dots for a territory at its designated armyHex position
+ * Used by updateTerritoryDisplay for re-rendering after combat
+ */
+function renderArmyDots(territory, hexSize) {
+    if (!territory.armyHex) {
+        const group = createSvgElement('g');
+        group.setAttribute('class', 'army-dots');
+        return group;
+    }
+    const armyHex = parseHexKey(territory.armyHex);
+    const center = hexToPixel(armyHex, hexSize);
+    return renderArmyDotsAtPoint(territory, center, hexSize);
+}
+/**
+ * Order boundary edges into a closed contour path
+ * Chains disconnected edges by matching endpoints to form continuous loops
+ */
+function orderBoundaryEdges(edges) {
+    if (edges.length === 0)
+        return [];
+    // Snap coordinates to whole numbers for robust matching
+    const snap = (n) => Math.round(n);
+    const snapPoint = (p) => ({ x: snap(p.x), y: snap(p.y) });
+    const pointKey = (p) => `${p.x},${p.y}`;
+    // Pre-snap all edge coordinates
+    const snappedEdges = edges.map(([p1, p2]) => [snapPoint(p1), snapPoint(p2)]);
+    // Build adjacency map: point → list of edges containing that point
+    const adjacency = new Map();
+    for (const edge of snappedEdges) {
+        const key1 = pointKey(edge[0]);
+        const key2 = pointKey(edge[1]);
+        const entry = { edge, used: false };
+        if (!adjacency.has(key1))
+            adjacency.set(key1, []);
+        if (!adjacency.has(key2))
+            adjacency.set(key2, []);
+        adjacency.get(key1).push(entry);
+        adjacency.get(key2).push(entry);
+    }
+    const contours = [];
+    const edgeEntries = Array.from(adjacency.values()).flat();
+    const allEntries = new Set(edgeEntries);
+    // Walk edges to form closed contours
+    while (true) {
+        // Find an unused edge to start a new contour
+        let startEntry;
+        for (const entry of allEntries) {
+            if (!entry.used) {
+                startEntry = entry;
+                break;
+            }
+        }
+        if (!startEntry)
+            break;
+        startEntry.used = true;
+        const contour = [startEntry.edge[0], startEntry.edge[1]];
+        let currentKey = pointKey(startEntry.edge[1]);
+        // Walk until we return to start or can't continue
+        while (true) {
+            const neighbors = adjacency.get(currentKey);
+            if (!neighbors)
+                break;
+            let nextEntry;
+            for (const entry of neighbors) {
+                if (!entry.used) {
+                    nextEntry = entry;
+                    break;
+                }
+            }
+            if (!nextEntry)
+                break;
+            nextEntry.used = true;
+            // Determine which endpoint is new
+            const key0 = pointKey(nextEntry.edge[0]);
+            const key1 = pointKey(nextEntry.edge[1]);
+            if (key0 === currentKey) {
+                contour.push(nextEntry.edge[1]);
+                currentKey = key1;
+            }
+            else {
+                contour.push(nextEntry.edge[0]);
+                currentKey = key0;
+            }
+            // Check if we've closed the loop
+            if (currentKey === pointKey(contour[0])) {
+                break;
+            }
+        }
+        if (contour.length >= 3) {
+            contours.push(contour);
+        }
+    }
+    return contours;
+}
+/**
+ * Create a smooth contour path from ordered vertices using Bezier curves
+ */
+function createSmoothContourPath(vertices, cornerRadius) {
+    if (vertices.length < 3)
+        return '';
+    const n = vertices.length;
+    let path = '';
+    for (let i = 0; i < n; i++) {
+        const curr = vertices[i];
+        const next = vertices[(i + 1) % n];
+        const prev = vertices[(i - 1 + n) % n];
+        // Vector from current vertex to previous and next
+        const toPrev = { x: prev.x - curr.x, y: prev.y - curr.y };
+        const toNext = { x: next.x - curr.x, y: next.y - curr.y };
+        // Normalize and scale by radius
+        const lenPrev = Math.sqrt(toPrev.x * toPrev.x + toPrev.y * toPrev.y);
+        const lenNext = Math.sqrt(toNext.x * toNext.x + toNext.y * toNext.y);
+        // Clamp radius to not exceed half the edge length
+        const effectiveRadius = Math.min(cornerRadius, lenPrev / 2, lenNext / 2);
+        const startPoint = {
+            x: curr.x + (toPrev.x / lenPrev) * effectiveRadius,
+            y: curr.y + (toPrev.y / lenPrev) * effectiveRadius
+        };
+        const endPoint = {
+            x: curr.x + (toNext.x / lenNext) * effectiveRadius,
+            y: curr.y + (toNext.y / lenNext) * effectiveRadius
+        };
+        if (i === 0) {
+            path = `M ${startPoint.x.toFixed(2)} ${startPoint.y.toFixed(2)}`;
+        }
+        else {
+            path += ` L ${startPoint.x.toFixed(2)} ${startPoint.y.toFixed(2)}`;
+        }
+        // Quadratic bezier curve through the corner
+        path += ` Q ${curr.x.toFixed(2)} ${curr.y.toFixed(2)} ${endPoint.x.toFixed(2)} ${endPoint.y.toFixed(2)}`;
+    }
+    path += ' Z';
+    return path;
+}
+/**
+ * Create an inset contour path (for inner highlight stroke)
+ */
+function createInsetContourPath(vertices, insetAmount, cornerRadius) {
+    if (vertices.length < 3)
+        return '';
+    // Calculate the centroid
+    let cx = 0, cy = 0;
+    for (const v of vertices) {
+        cx += v.x;
+        cy += v.y;
+    }
+    cx /= vertices.length;
+    cy /= vertices.length;
+    // Create inset vertices by moving each vertex toward centroid
+    const insetVertices = vertices.map(v => {
+        const dx = v.x - cx;
+        const dy = v.y - cy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const scale = (dist - insetAmount) / dist;
+        return {
+            x: cx + dx * scale,
+            y: cy + dy * scale
+        };
+    });
+    return createSmoothContourPath(insetVertices, cornerRadius);
+}
+/**
+ * Get boundary edges for a territory
+ * Returns edges that are NOT shared with another hex in the same territory
+ */
+function getTerritoryBoundaryEdges(hexes, hexKeySet, hexSize) {
+    const boundaryEdges = [];
+    // Mapping from edge index to neighbor direction index
+    const edgeToNeighbor = [0, 5, 4, 3, 2, 1];
+    for (const hex of hexes) {
+        const center = hexToPixel(hex, hexSize);
+        const corners = hexCorners(center, hexSize);
+        const neighbors = hexNeighbors(hex);
+        for (let edgeIndex = 0; edgeIndex < 6; edgeIndex++) {
+            const neighborDirIndex = edgeToNeighbor[edgeIndex];
+            const neighborKey = hexKey(neighbors[neighborDirIndex]);
+            if (!hexKeySet.has(neighborKey)) {
+                const p1 = corners[edgeIndex];
+                const p2 = corners[(edgeIndex + 1) % 6];
+                boundaryEdges.push([p1, p2]);
+            }
+        }
+    }
+    return boundaryEdges;
 }
 /**
  * Create a path element for the territory boundary
@@ -193,40 +516,108 @@ function createTerritoryBoundary(hexes, hexKeySet, hexSize) {
     return path;
 }
 /**
+ * Create a rounded hex path data string
+ * Uses quadratic bezier curves at corners for smooth rounding
+ */
+function createRoundedHexPath(center, hexSize, cornerRadius = 0.15) {
+    const corners = hexCorners(center, hexSize);
+    // Corner radius as a fraction of the edge length
+    const edgeLength = hexSize; // Approximate edge length
+    const radius = edgeLength * cornerRadius;
+    let path = '';
+    for (let i = 0; i < 6; i++) {
+        const curr = corners[i];
+        const next = corners[(i + 1) % 6];
+        const prev = corners[(i + 5) % 6];
+        // Vector from current corner to previous and next
+        const toPrev = { x: prev.x - curr.x, y: prev.y - curr.y };
+        const toNext = { x: next.x - curr.x, y: next.y - curr.y };
+        // Normalize and scale by radius
+        const lenPrev = Math.sqrt(toPrev.x * toPrev.x + toPrev.y * toPrev.y);
+        const lenNext = Math.sqrt(toNext.x * toNext.x + toNext.y * toNext.y);
+        const startPoint = {
+            x: curr.x + (toPrev.x / lenPrev) * radius,
+            y: curr.y + (toPrev.y / lenPrev) * radius
+        };
+        const endPoint = {
+            x: curr.x + (toNext.x / lenNext) * radius,
+            y: curr.y + (toNext.y / lenNext) * radius
+        };
+        if (i === 0) {
+            path = `M ${startPoint.x.toFixed(2)} ${startPoint.y.toFixed(2)}`;
+        }
+        else {
+            path += ` L ${startPoint.x.toFixed(2)} ${startPoint.y.toFixed(2)}`;
+        }
+        // Quadratic bezier curve through the corner
+        path += ` Q ${curr.x.toFixed(2)} ${curr.y.toFixed(2)} ${endPoint.x.toFixed(2)} ${endPoint.y.toFixed(2)}`;
+    }
+    path += ' Z';
+    return path;
+}
+/**
  * Render an empty/impassable hex (fill from CSS token --color-map-empty-hex)
  */
 function renderEmptyHex(hex, hexSize) {
     const center = hexToPixel(hex, hexSize);
-    const corners = hexCorners(center, hexSize);
-    const points = cornersToSvgPoints(corners);
-    const polygon = createSvgElement('polygon');
-    polygon.setAttribute('class', 'hex hex-empty');
-    polygon.setAttribute('points', points);
-    polygon.setAttribute('data-hex-q', String(hex.q));
-    polygon.setAttribute('data-hex-r', String(hex.r));
-    polygon.setAttribute('aria-label', `Empty tile at ${hex.q}, ${hex.r}`);
-    return polygon;
+    const group = createSvgElement('g');
+    // Main hex shape with rounded corners
+    const hexPath = createSvgElement('path');
+    hexPath.setAttribute('class', 'hex hex-empty');
+    hexPath.setAttribute('d', createRoundedHexPath(center, hexSize));
+    hexPath.setAttribute('data-hex-q', String(hex.q));
+    hexPath.setAttribute('data-hex-r', String(hex.r));
+    hexPath.setAttribute('aria-label', `Empty tile at ${hex.q}, ${hex.r}`);
+    group.appendChild(hexPath);
+    return group;
 }
 /**
- * Render a single hex as an SVG polygon (fill only, no stroke)
+ * Lighten a hex color by a percentage
+ */
+function lightenColor(hexColor, percent) {
+    // Remove # if present
+    const hex = hexColor.replace('#', '');
+    // Parse RGB values
+    let r = parseInt(hex.substring(0, 2), 16);
+    let g = parseInt(hex.substring(2, 4), 16);
+    let b = parseInt(hex.substring(4, 6), 16);
+    // Lighten
+    r = Math.min(255, Math.floor(r + (255 - r) * percent));
+    g = Math.min(255, Math.floor(g + (255 - g) * percent));
+    b = Math.min(255, Math.floor(b + (255 - b) * percent));
+    // Convert back to hex
+    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+}
+/**
+ * Render a single hex as an SVG group with rounded corners and inner stroke
  */
 function renderHex(hex, territory, hexSize) {
     const center = hexToPixel(hex, hexSize);
-    const corners = hexCorners(center, hexSize);
-    const points = cornersToSvgPoints(corners);
-    const polygon = createSvgElement('polygon');
-    polygon.setAttribute('class', 'hex');
-    polygon.setAttribute('points', points);
-    polygon.setAttribute('fill', territory.color);
-    polygon.setAttribute('stroke', 'none');
-    polygon.setAttribute('data-hex-q', String(hex.q));
-    polygon.setAttribute('data-hex-r', String(hex.r));
-    polygon.setAttribute('data-territory-id', String(territory.id));
+    const group = createSvgElement('g');
+    // Main hex shape with rounded corners
+    const hexPath = createSvgElement('path');
+    hexPath.setAttribute('class', 'hex');
+    hexPath.setAttribute('d', createRoundedHexPath(center, hexSize));
+    hexPath.setAttribute('fill', territory.color);
+    hexPath.setAttribute('stroke', 'none');
+    hexPath.setAttribute('data-hex-q', String(hex.q));
+    hexPath.setAttribute('data-hex-r', String(hex.r));
+    hexPath.setAttribute('data-territory-id', String(territory.id));
     // Accessibility
-    polygon.setAttribute('tabindex', '0');
-    polygon.setAttribute('role', 'button');
-    polygon.setAttribute('aria-label', `Hex at ${hex.q}, ${hex.r} in ${territory.name}`);
-    return polygon;
+    hexPath.setAttribute('tabindex', '0');
+    hexPath.setAttribute('role', 'button');
+    hexPath.setAttribute('aria-label', `Hex at ${hex.q}, ${hex.r} in ${territory.name}`);
+    group.appendChild(hexPath);
+    // Inner stroke effect (slightly smaller hex with lighter color stroke)
+    const innerHexPath = createSvgElement('path');
+    innerHexPath.setAttribute('class', 'hex-inner-stroke');
+    innerHexPath.setAttribute('d', createRoundedHexPath(center, hexSize * 0.88, 0.12));
+    innerHexPath.setAttribute('fill', 'none');
+    innerHexPath.setAttribute('stroke', lightenColor(territory.color, 0.3));
+    innerHexPath.setAttribute('stroke-width', '2');
+    innerHexPath.setAttribute('pointer-events', 'none');
+    group.appendChild(innerHexPath);
+    return group;
 }
 /**
  * Add click handlers to hexes with selection support
@@ -391,10 +782,17 @@ export function updateTerritoryDisplay(svgElement, territory, hexSize = HEX_SIZE
     const group = svgElement.querySelector(`.territory-group[data-territory-id="${territory.id}"]`);
     if (!group)
         return;
-    // Update hex colors
-    const hexElements = group.querySelectorAll('.hex');
-    hexElements.forEach(hex => {
-        hex.setAttribute('fill', territory.color);
+    const fillColor = territory.color;
+    const strokeColor = lightenColor(territory.color, 0.4);
+    // Update all fill elements (tile-base, tile-under, tile-over)
+    const fillElements = group.querySelectorAll('.tile-base, .tile-under, .tile-over, .hex');
+    fillElements.forEach(el => {
+        el.setAttribute('fill', fillColor);
+    });
+    // Update all stroke elements (tile-stroke, tile-connector-stroke)
+    const strokeElements = group.querySelectorAll('.tile-stroke, .tile-connector-stroke');
+    strokeElements.forEach(el => {
+        el.setAttribute('fill', strokeColor);
     });
     // Update army dots
     const existingArmyGroup = group.querySelector('.army-dots');
