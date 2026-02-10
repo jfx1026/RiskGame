@@ -6,7 +6,7 @@
 
 :root {
   /* ---------- Background & surface ---------- */
-  --color-bg-page: #1a1a2e;
+  --color-bg-page: #0f0f1a;
   --color-bg-surface: #0f0f1a;
   --color-bg-panel: rgba(0, 0, 0, 0.4);
   --color-bg-overlay: rgba(0, 0, 0, 0.8);
