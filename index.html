@@ -20,8 +20,6 @@
         body {
             font-family: var(--font-family);
             background: var(--color-bg-page);
-            display: flex;
-            flex-direction: row;
         }
 
         /* ========== SIDEBAR ========== */
@@ -38,7 +36,7 @@
         }
 
         .sidebar-top {
-            margin-bottom: var(--space-xl);
+            height: 70px;
         }
 
         .team-stats {
@@ -50,8 +48,7 @@
         }
 
         .sidebar-bottom {
-            margin-top: auto;
-            padding-bottom: var(--space-sm);
+            height: 70px;
         }
 
         .team-stat-row {
@@ -154,7 +151,9 @@
         }
 
         .btn-back {
-            position: relative;
+            position: absolute;
+            top: var(--space-md);
+            left: var(--space-sm);
             border-radius: var(--radius-md);
         }
 
@@ -175,13 +174,14 @@
         }
 
         .btn-end-turn {
-            position: relative;
-            width: 72px;
-            height: 72px;
-            padding: var(--space-sm);
+            position: absolute;
+            bottom: var(--space-md);
+            left: var(--space-sm);
+            width: auto;
+            height: 48px;
+            padding: 0 var(--space-xl);
             font-size: var(--font-size-sm);
             font-weight: var(--font-weight-bold);
-            line-height: 1.2;
             background: var(--color-btn-success);
             border-color: var(--color-btn-success);
             color: var(--color-text-inverse);
@@ -442,9 +442,120 @@
         #combat-log {
             display: none;
         }
+
+        /* ========== START SCREEN ========== */
+        .start-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #d0d0d0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+
+        .start-screen.hidden {
+            display: none;
+        }
+
+        .start-content {
+            text-align: center;
+        }
+
+        .game-title {
+            font-size: 3.5rem;
+            font-weight: bold;
+            color: #1a1a1a;
+            margin-bottom: 3rem;
+        }
+
+        .size-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+        }
+
+        .size-btn {
+            padding: 1rem 2rem;
+            font-size: 1.1rem;
+            font-weight: 500;
+            background: #4fc3f7;
+            color: #fff;
+            border: none;
+            border-radius: 2rem;
+            cursor: pointer;
+            min-width: 120px;
+            transition: background var(--transition-fast), transform var(--transition-fast);
+        }
+
+        .size-btn:hover {
+            background: #29b6f6;
+            transform: scale(1.05);
+        }
+
+        .size-btn:active {
+            transform: scale(0.98);
+        }
+
+        .resume-btn {
+            margin-top: 2rem;
+            padding: 1rem 3rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+            background: #2e7d32;
+            color: #fff;
+            border: none;
+            border-radius: 2rem;
+            cursor: pointer;
+            transition: background var(--transition-fast), transform var(--transition-fast);
+        }
+
+        .resume-btn:hover {
+            background: #388e3c;
+            transform: scale(1.05);
+        }
+
+        .resume-btn:active {
+            transform: scale(0.98);
+        }
+
+        .resume-btn.hidden {
+            display: none;
+        }
+
+        /* ========== GAME SCREEN ========== */
+        .game-screen {
+            display: flex;
+            flex-direction: row;
+            width: 100%;
+            height: 100%;
+        }
+
+        .game-screen.hidden {
+            display: none;
+        }
     </style>
 </head>
 <body>
+    <!-- Start Screen -->
+    <div id="start-screen" class="start-screen">
+        <div class="start-content">
+            <h1 class="game-title">Strategery 2.0</h1>
+            <div class="size-buttons">
+                <button class="size-btn" data-size="small">Small</button>
+                <button class="size-btn" data-size="medium">Medium</button>
+                <button class="size-btn" data-size="large">Large</button>
+            </div>
+            <button class="resume-btn hidden" id="resume-btn">Resume Game</button>
+        </div>
+    </div>
+
+    <!-- Game Screen (hidden initially) -->
+    <div id="game-screen" class="game-screen hidden">
+
     <!-- Sidebar with team stats -->
     <aside class="sidebar">
         <div class="sidebar-top">
@@ -459,7 +570,7 @@
         </div>
         <div class="sidebar-bottom">
             <button class="corner-btn btn-end-turn" id="end-turn-btn" aria-label="End your turn">
-                End<br>Turn
+                End Turn
             </button>
         </div>
     </aside>
@@ -482,6 +593,8 @@
             </svg>
         </button>
     </main>
+
+    </div><!-- End game-screen -->
 
     <!-- Hidden elements for JS compatibility -->
     <div id="turn-indicator"></div>

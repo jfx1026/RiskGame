@@ -18,6 +18,9 @@ let surrenderButton;
 let combatLogElement;
 let teamStatsElement;
 let backButton;
+let startScreen;
+let gameScreen;
+let resumeButton;
 // Current game state
 let currentMap = null;
 let gameState = null;
@@ -79,7 +82,10 @@ function init() {
     const combatLogEl = document.getElementById('combat-log');
     const teamStatsEl = document.getElementById('team-stats');
     const backBtn = document.getElementById('back-btn');
-    if (!svgEl || !tooltipEl) {
+    const startScreenEl = document.getElementById('start-screen');
+    const gameScreenEl = document.getElementById('game-screen');
+    const resumeBtn = document.getElementById('resume-btn');
+    if (!svgEl || !tooltipEl || !startScreenEl || !gameScreenEl || !resumeBtn) {
         console.error('Required DOM elements not found');
         return;
     }
@@ -93,25 +99,116 @@ function init() {
     combatLogElement = combatLogEl || document.createElement('div');
     teamStatsElement = teamStatsEl || document.createElement('div');
     backButton = backBtn || document.createElement('button');
+    startScreen = startScreenEl;
+    gameScreen = gameScreenEl;
+    resumeButton = resumeBtn;
     // Set up End Turn button
     endTurnButton.addEventListener('click', handleEndTurn);
     // Set up Fast Forward button
     fastForwardButton.addEventListener('click', toggleFastForward);
     // Set up Surrender button
     surrenderButton.addEventListener('click', handleSurrender);
-    // Set up Back button (placeholder - will navigate to menu later)
+    // Set up Back button - returns to start screen
     backButton.addEventListener('click', handleBack);
-    // Generate initial map with medium size
-    generateAndRenderNewMap();
+    // Set up size buttons on start screen
+    const sizeButtons = document.querySelectorAll('.size-btn');
+    sizeButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const size = e.target.dataset.size;
+            if (size) {
+                handleSizeButtonClick(size);
+            }
+        });
+    });
+    // Set up resume button
+    resumeButton.addEventListener('click', resumeGame);
+    // Show start screen initially
+    showStartScreen();
     console.log('Risk Game initialized');
 }
 /**
- * Handle back button - placeholder for navigation to menu
+ * Handle back button - returns to start screen
  */
 function handleBack() {
-    // For now, just start a new game
-    // Later this will navigate to a map size selection screen
+    showStartScreen();
+}
+/**
+ * Show the start screen and hide the game
+ */
+function showStartScreen() {
+    startScreen.classList.remove('hidden');
+    gameScreen.classList.add('hidden');
+    // Show resume button if there's an active game
+    const hasActiveGame = gameState !== null && gameState.phase !== 'gameOver';
+    resumeButton.classList.toggle('hidden', !hasActiveGame);
+}
+/**
+ * Show the game screen and hide the start screen
+ */
+function showGameScreen() {
+    startScreen.classList.add('hidden');
+    gameScreen.classList.remove('hidden');
+}
+/**
+ * Start a new game with the specified size
+ */
+function startGameWithSize(size) {
+    // Reset game state for new game
+    gameState = null;
+    currentMap = null;
+    gameStarted = false;
+    isComputerPlaying = false;
+    isFastForward = false;
+    fastForwardButton.classList.remove('active');
+    currentSize = size;
+    showGameScreen();
     generateAndRenderNewMap();
+}
+/**
+ * Handle size button click - check for active game first
+ */
+function handleSizeButtonClick(size) {
+    const hasActiveGame = gameState !== null && gameState.phase !== 'gameOver';
+    if (hasActiveGame) {
+        showNewGameConfirmation(size);
+    }
+    else {
+        startGameWithSize(size);
+    }
+}
+/**
+ * Show confirmation modal when starting new game with active game
+ */
+function showNewGameConfirmation(size) {
+    const overlay = document.createElement('div');
+    overlay.className = 'victory-overlay';
+    overlay.id = 'new-game-modal';
+    overlay.innerHTML = `
+        <div class="victory-content">
+            <h2 class="text-danger">Abandon Game?</h2>
+            <p>Starting a new game will surrender your current game.</p>
+            <div class="modal-buttons">
+                <button class="cancel-btn" id="cancel-new-game-btn">Cancel</button>
+                <button class="confirm-btn" id="confirm-new-game-btn">Start New Game</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+    document.getElementById('cancel-new-game-btn')?.addEventListener('click', () => {
+        overlay.remove();
+    });
+    document.getElementById('confirm-new-game-btn')?.addEventListener('click', () => {
+        overlay.remove();
+        startGameWithSize(size);
+    });
+}
+/**
+ * Resume the current game in progress
+ */
+function resumeGame() {
+    if (gameState && gameState.phase !== 'gameOver') {
+        showGameScreen();
+    }
 }
 /**
  * Create turn indicator if it doesn't exist in DOM
@@ -160,7 +257,6 @@ function createFastForwardButton() {
 function toggleFastForward() {
     isFastForward = !isFastForward;
     fastForwardButton.classList.toggle('active', isFastForward);
-    fastForwardButton.textContent = isFastForward ? 'Fast Forward ON' : 'Fast Forward';
 }
 /**
  * Create Surrender button if it doesn't exist in DOM
@@ -181,10 +277,6 @@ function createSurrenderButton() {
  */
 function handleSurrender() {
     if (!gameState || gameState.phase === 'gameOver') {
-        return;
-    }
-    // Don't allow surrender during computer's turn
-    if (isComputerPlaying) {
         return;
     }
     showSurrenderConfirmation();
@@ -214,7 +306,7 @@ function showSurrenderConfirmation() {
     });
 }
 /**
- * Execute the surrender - show defeat screen
+ * Execute the surrender - show defeat screen and return to menu
  */
 function executeSurrender() {
     if (!gameState)
@@ -228,17 +320,25 @@ function executeSurrender() {
         phase: 'gameOver',
     };
     logCombatResult(`${humanTeam.name} has surrendered!`);
-    // Show defeat overlay
+    // Show defeat overlay with menu button
     const overlay = document.createElement('div');
     overlay.className = 'victory-overlay';
+    overlay.id = 'defeat-overlay';
     overlay.innerHTML = `
         <div class="victory-content">
             <h2 class="text-danger">Surrendered</h2>
             <p>${humanTeam.name} has surrendered the game</p>
-            <button onclick="this.parentElement.parentElement.remove()">Close</button>
+            <div class="modal-buttons">
+                <button class="primary-btn" id="return-to-menu-btn">Menu</button>
+            </div>
         </div>
     `;
     document.body.appendChild(overlay);
+    // Add event listener for menu button
+    document.getElementById('return-to-menu-btn')?.addEventListener('click', () => {
+        overlay.remove();
+        showStartScreen();
+    });
     updateTurnIndicator();
 }
 /**
@@ -829,17 +929,28 @@ function showVictory(winnerId) {
     if (!winner)
         return;
     logCombatResult(`${winner.name} has conquered the world!`);
-    // Create victory overlay
+    const isHumanWinner = winner.isHuman;
+    const title = isHumanWinner ? 'Victory!' : 'Defeat';
+    const titleClass = isHumanWinner ? '' : 'text-danger';
+    // Create victory/defeat overlay
     const overlay = document.createElement('div');
     overlay.className = 'victory-overlay';
+    overlay.id = 'victory-overlay';
     overlay.innerHTML = `
         <div class="victory-content">
-            <h2 style="color: ${winner.color}">${winner.name} Wins!</h2>
-            <p>Conquered all territories in ${gameState.turnNumber} turns</p>
-            <button onclick="this.parentElement.parentElement.remove()">Close</button>
+            <h2 class="${titleClass}" style="color: ${isHumanWinner ? winner.color : ''}">${title}</h2>
+            <p>${winner.name} conquered all territories in ${gameState.turnNumber} turns</p>
+            <div class="modal-buttons">
+                <button class="primary-btn" id="victory-menu-btn">Menu</button>
+            </div>
         </div>
     `;
     document.body.appendChild(overlay);
+    // Add event listener for menu button
+    document.getElementById('victory-menu-btn')?.addEventListener('click', () => {
+        overlay.remove();
+        showStartScreen();
+    });
 }
 // Track mouse movement for tooltip positioning
 document.addEventListener('mousemove', (event) => {
