@@ -51,9 +51,8 @@
   --color-map-selection-border: #ffffff;
   --color-map-valid-target-border: #ff6b6b;
   --color-map-valid-target-border-pulse: #ff8888;
-  --color-army-dot-fill: #ffffff;
-  --color-army-dot-stroke: #000000;
-  --color-army-dot-empty-stroke: rgba(0, 0, 0, 0.3);
+  --color-army-dot-fill: #8ED6F5;
+  --color-army-dot-empty-fill: rgba(0, 0, 0, 0.4);
 
   /* ---------- Accent / semantic ---------- */
   --color-accent-danger: #ff6b6b;

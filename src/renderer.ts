@@ -70,6 +70,20 @@ export function renderMap(
     `;
     defs.appendChild(filter);
 
+    // Add radial gradient for empty army dots (offset dark center = "hole" effect)
+    const emptyDotGradient = createSvgElement('radialGradient');
+    emptyDotGradient.setAttribute('id', 'emptyDotGradient');
+    emptyDotGradient.setAttribute('cx', '30%');
+    emptyDotGradient.setAttribute('cy', '30%');
+    emptyDotGradient.setAttribute('r', '70%');
+    emptyDotGradient.setAttribute('fx', '30%');
+    emptyDotGradient.setAttribute('fy', '30%');
+    emptyDotGradient.innerHTML = `
+        <stop offset="25%" stop-color="#010E13"/>
+        <stop offset="100%" stop-color="#00719C"/>
+    `;
+    defs.appendChild(emptyDotGradient);
+
     // Create main group with offset transform
     const mainGroup = createSvgElement('g');
     mainGroup.setAttribute('transform', `translate(${offsetX}, ${offsetY})`);
@@ -297,38 +311,55 @@ function renderTerritory(territory: Territory, hexSize: number): SVGGElement {
 
 /**
  * Render army dots at a specific center point
- * Shows filled dots for armies and empty (grey) dots for remaining capacity
- * Dots are arranged in 2 columns (compact 2x3 grid)
- * Uses 3D shadow effect for visual depth
+ * Shows filled dots (3D spheres) and empty dots (dark insets) in a hex grid
+ * Large territories: 4-5-4 pattern (13 capacity)
+ * Small territories: 2-3-2 pattern (7 capacity)
  */
 function renderArmyDotsAtPoint(territory: Territory, center: Point, hexSize: number): SVGGElement {
     const group = createSvgElement('g') as SVGGElement;
     group.setAttribute('class', 'army-dots');
 
     const armies = territory.armies;
-    const maxCapacity = territory.type === 'big' ? 10 : 7;
 
-    // Dot configuration - 2 columns (compact grid)
-    const dotRadius = hexSize * 0.14;
-    const dotSpacingX = dotRadius * 2.6;
+    // Hex grid row patterns: [dots per row]
+    // Large: 4-5-4 = 13 total, Small: 2-3-2 = 7 total
+    const rowPattern = territory.type === 'big' ? [4, 5, 4] : [2, 3, 2];
+    const maxCapacity = territory.type === 'big' ? 13 : 7;
+
+    // Dot configuration (15% smaller than original)
+    const dotRadius = hexSize * 0.094;
+    const dotSpacingX = dotRadius * 2.5;
     const dotSpacingY = dotRadius * 2.2;
 
-    // Calculate grid: 2 columns, fill row by row
-    const cols = 2;
-    const totalDots = maxCapacity;
-    const fullRows = Math.floor(totalDots / cols);
-    const lastRowDots = totalDots % cols;
-    const totalRows = fullRows + (lastRowDots > 0 ? 1 : 0);
+    // Territory-specific colors for dots
+    const filledDotColor = lightenColor(territory.color, 0.7);
+    const gradientId = `emptyDotGradient-${territory.id}`;
+    const outerColor = darkenColor(territory.color, 0.3);
+    const defs = createSvgElement('defs');
+    const gradient = createSvgElement('radialGradient');
+    gradient.setAttribute('id', gradientId);
+    gradient.setAttribute('cx', '30%');
+    gradient.setAttribute('cy', '30%');
+    gradient.setAttribute('r', '70%');
+    gradient.setAttribute('fx', '30%');
+    gradient.setAttribute('fy', '30%');
+    gradient.innerHTML = `
+        <stop offset="25%" stop-color="#1a3040"/>
+        <stop offset="100%" stop-color="${outerColor}"/>
+    `;
+    defs.appendChild(gradient);
+    group.appendChild(defs);
 
     // Calculate total height to center vertically
+    const totalRows = rowPattern.length;
     const totalHeight = (totalRows - 1) * dotSpacingY;
     const startY = center.y - totalHeight / 2;
 
-    // Draw dots
+    // Draw all dots (filled + empty capacity)
     let dotIndex = 0;
 
     for (let row = 0; row < totalRows; row++) {
-        const dotsInThisRow = (row < fullRows) ? cols : lastRowDots;
+        const dotsInThisRow = rowPattern[row];
         const rowWidth = (dotsInThisRow - 1) * dotSpacingX;
         const startX = center.x - rowWidth / 2;
         const y = startY + row * dotSpacingY;
@@ -338,28 +369,46 @@ function renderArmyDotsAtPoint(territory: Territory, center: Point, hexSize: num
             const isFilled = dotIndex < armies;
 
             if (isFilled) {
-                // Create shadow (offset dark circle)
-                const shadow = createSvgElement('circle');
+                // Filled dot: 3D sphere effect
+                // Shadow underneath
+                const shadow = createSvgElement('ellipse');
                 shadow.setAttribute('class', 'army-dot-shadow');
-                shadow.setAttribute('cx', String(x + dotRadius * 0.15));
-                shadow.setAttribute('cy', String(y + dotRadius * 0.25));
-                shadow.setAttribute('r', String(dotRadius));
-                shadow.setAttribute('fill', 'rgba(0, 0, 0, 0.4)');
+                shadow.setAttribute('cx', String(x));
+                shadow.setAttribute('cy', String(y + dotRadius * 0.3));
+                shadow.setAttribute('rx', String(dotRadius * 0.9));
+                shadow.setAttribute('ry', String(dotRadius * 0.5));
+                shadow.setAttribute('fill', 'rgba(0, 0, 0, 0.3)');
                 group.appendChild(shadow);
+
+                // Main dot body
+                const dot = createSvgElement('circle');
+                dot.setAttribute('class', 'army-dot');
+                dot.setAttribute('cx', String(x));
+                dot.setAttribute('cy', String(y));
+                dot.setAttribute('r', String(dotRadius));
+                dot.setAttribute('fill', filledDotColor);
+                group.appendChild(dot);
+
+                // Highlight (top-left shine)
+                const highlight = createSvgElement('ellipse');
+                highlight.setAttribute('class', 'army-dot-highlight');
+                highlight.setAttribute('cx', String(x - dotRadius * 0.3));
+                highlight.setAttribute('cy', String(y - dotRadius * 0.3));
+                highlight.setAttribute('rx', String(dotRadius * 0.4));
+                highlight.setAttribute('ry', String(dotRadius * 0.3));
+                highlight.setAttribute('fill', 'rgba(255, 255, 255, 0.6)');
+                group.appendChild(highlight);
+            } else {
+                // Empty dot: dark inset hole with territory-colored gradient
+                const emptyDot = createSvgElement('circle');
+                emptyDot.setAttribute('class', 'army-dot-empty');
+                emptyDot.setAttribute('cx', String(x));
+                emptyDot.setAttribute('cy', String(y));
+                emptyDot.setAttribute('r', String(dotRadius));
+                emptyDot.setAttribute('fill', `url(#${gradientId})`);
+                group.appendChild(emptyDot);
             }
 
-            // Create main dot
-            const dot = createSvgElement('circle');
-            dot.setAttribute('class', isFilled ? 'army-dot' : 'army-dot army-dot-empty');
-            dot.setAttribute('cx', String(x));
-            dot.setAttribute('cy', String(y));
-            dot.setAttribute('r', String(dotRadius));
-
-            if (!isFilled) {
-                dot.setAttribute('fill', 'none');
-            }
-
-            group.appendChild(dot);
             dotIndex++;
         }
     }
@@ -734,6 +783,24 @@ function lightenColor(hexColor: string, percent: number): string {
     r = Math.min(255, Math.floor(r + (255 - r) * percent));
     g = Math.min(255, Math.floor(g + (255 - g) * percent));
     b = Math.min(255, Math.floor(b + (255 - b) * percent));
+
+    // Convert back to hex
+    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+}
+
+function darkenColor(hexColor: string, percent: number): string {
+    // Remove # if present
+    const hex = hexColor.replace('#', '');
+
+    // Parse RGB values
+    let r = parseInt(hex.substring(0, 2), 16);
+    let g = parseInt(hex.substring(2, 4), 16);
+    let b = parseInt(hex.substring(4, 6), 16);
+
+    // Darken
+    r = Math.max(0, Math.floor(r * (1 - percent)));
+    g = Math.max(0, Math.floor(g * (1 - percent)));
+    b = Math.max(0, Math.floor(b * (1 - percent)));
 
     // Convert back to hex
     return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;

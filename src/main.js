@@ -141,6 +141,11 @@ function showStartScreen() {
     // Show resume button if there's an active game
     const hasActiveGame = gameState !== null && gameState.phase !== 'gameOver';
     resumeButton.classList.toggle('hidden', !hasActiveGame);
+    // Sync size button selected state with currentSize
+    document.querySelectorAll('.size-btn').forEach(btn => {
+        const size = btn.dataset.size;
+        btn.classList.toggle('selected', size === currentSize);
+    });
 }
 /**
  * Show the game screen and hide the start screen

@@ -222,13 +222,26 @@
             transition: filter var(--transition-fast);
         }
 
-        .hex:hover {
-            filter: brightness(1.15);
+        .tile-under,
+        .tile-over {
+            transition: filter var(--transition-fast);
         }
 
         .hex:focus {
             outline: none;
-            filter: brightness(1.2);
+        }
+
+        /* Apply brightness to all tile elements when territory is hovered/focused */
+        .territory-group:has(.hex:hover) .hex,
+        .territory-group:has(.hex:hover) .tile-under,
+        .territory-group:has(.hex:hover) .tile-over {
+            filter: brightness(1.15);
+        }
+
+        .territory-group:has(.hex:focus) .hex,
+        .territory-group:has(.hex:focus) .tile-under,
+        .territory-group:has(.hex:focus) .tile-over {
+            filter: brightness(1.15);
         }
 
         .hex-empty {
@@ -250,24 +263,29 @@
             pointer-events: none;
         }
 
-        .territory-group.selected .territory-border {
-            stroke: var(--color-map-selection-border);
-            stroke-width: 6;
+        /* Selected territory: inner stroke turns black */
+        .territory-group.selected .tile-stroke,
+        .territory-group.selected .tile-connector-stroke {
+            fill: #000000;
         }
 
-        .territory-group.valid-target .territory-border {
-            stroke: var(--color-map-valid-target-border);
-            stroke-width: 6;
-            animation: pulse-border 1s ease-in-out infinite;
+        /* Valid attack targets: inner stroke turns white */
+        .territory-group.valid-target .tile-stroke,
+        .territory-group.valid-target .tile-connector-stroke {
+            fill: #ffffff;
         }
 
-        .territory-group.valid-target .hex {
+        .territory-group.valid-target .hex,
+        .territory-group.valid-target .tile-under,
+        .territory-group.valid-target .tile-over,
+        .territory-group.valid-target .tile-stroke,
+        .territory-group.valid-target .tile-connector-stroke {
             animation: pulse-brightness 1s ease-in-out infinite;
         }
 
         @keyframes pulse-border {
-            0%, 100% { stroke-width: 6; stroke: var(--color-map-valid-target-border); }
-            50% { stroke-width: 8; stroke: var(--color-map-valid-target-border-pulse); }
+            0%, 100% { stroke-width: 6; stroke: #ffffff; }
+            50% { stroke-width: 8; stroke: #ffffff; }
         }
 
         @keyframes pulse-brightness {
@@ -275,7 +293,11 @@
             50% { filter: brightness(1.2); }
         }
 
-        .territory-group.combat-flash .hex {
+        .territory-group.combat-flash .hex,
+        .territory-group.combat-flash .tile-under,
+        .territory-group.combat-flash .tile-over,
+        .territory-group.combat-flash .tile-stroke,
+        .territory-group.combat-flash .tile-connector-stroke {
             animation: combat-flash 0.5s ease-out;
         }
 
@@ -292,15 +314,22 @@
         }
 
         .army-dot {
-            fill: var(--color-army-dot-fill);
-            stroke: var(--color-army-dot-stroke);
-            stroke-width: 1;
+            /* fill set inline with territory-specific color */
+            stroke: #000000;
+            stroke-width: 0.5;
         }
 
         .army-dot-empty {
-            fill: none !important;
-            stroke: var(--color-army-dot-empty-stroke);
-            stroke-width: 1;
+            /* fill set inline with territory-specific gradient */
+            opacity: 0.85;
+        }
+
+        .army-dot-highlight {
+            pointer-events: none;
+        }
+
+        .army-dot-shadow {
+            pointer-events: none;
         }
 
         .territory-group.current-player .territory-border {
@@ -443,18 +472,20 @@
             display: none;
         }
 
-        /* ========== START SCREEN ========== */
+        /* ========== START SCREEN (Figma frame: Risk Clone node 11-12) ========== */
         .start-screen {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: #d0d0d0;
+            background: var(--color-bg-overlay);
             display: flex;
             align-items: center;
             justify-content: center;
             z-index: 100;
+            padding: var(--space-xl);
+            box-sizing: border-box;
         }
 
         .start-screen.hidden {
@@ -462,64 +493,89 @@
         }
 
         .start-content {
+            background: var(--color-bg-modal);
+            border-radius: var(--radius-xl);
+            padding: var(--space-3xl) var(--space-2xl);
             text-align: center;
+            box-shadow: var(--shadow-modal);
+            max-width: 420px;
+            width: 100%;
         }
 
         .game-title {
-            font-size: 3.5rem;
-            font-weight: bold;
-            color: #1a1a1a;
-            margin-bottom: 3rem;
+            font-size: var(--font-size-3xl);
+            font-weight: var(--font-weight-bold);
+            color: var(--color-text-primary);
+            margin-bottom: var(--space-3xl);
         }
 
         .size-buttons {
             display: flex;
-            gap: 1rem;
+            gap: var(--space-md);
             justify-content: center;
+            flex-wrap: wrap;
         }
 
         .size-btn {
-            padding: 1rem 2rem;
-            font-size: 1.1rem;
-            font-weight: 500;
-            background: #4fc3f7;
-            color: #fff;
-            border: none;
-            border-radius: 2rem;
+            padding: var(--space-md) var(--space-2xl);
+            font-size: var(--font-size-md);
+            font-weight: var(--font-weight-bold);
+            font-family: var(--font-family);
+            background: var(--color-btn-primary);
+            color: var(--color-text-on-button);
+            border: 2px solid transparent;
+            border-radius: var(--radius-sm);
             cursor: pointer;
-            min-width: 120px;
-            transition: background var(--transition-fast), transform var(--transition-fast);
+            min-width: 100px;
+            min-height: var(--touch-target-min);
+            transition: background var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
         }
 
         .size-btn:hover {
-            background: #29b6f6;
-            transform: scale(1.05);
+            background: var(--color-btn-primary-hover);
         }
 
         .size-btn:active {
-            transform: scale(0.98);
+            background: var(--color-btn-primary-active);
+            box-shadow: var(--shadow-button-active);
+        }
+
+        .size-btn:focus-visible {
+            outline: none;
+            border-color: var(--color-btn-focus-ring);
+        }
+
+        .size-btn.selected {
+            background: var(--color-btn-primary-active);
+            box-shadow: var(--shadow-button-active);
         }
 
         .resume-btn {
-            margin-top: 2rem;
-            padding: 1rem 3rem;
-            font-size: 1.1rem;
-            font-weight: 600;
-            background: #2e7d32;
-            color: #fff;
+            margin-top: var(--space-2xl);
+            padding: var(--space-md) var(--space-3xl);
+            font-size: var(--font-size-md);
+            font-weight: var(--font-weight-bold);
+            font-family: var(--font-family);
+            background: var(--color-btn-success);
+            color: var(--color-text-on-button);
             border: none;
-            border-radius: 2rem;
+            border-radius: var(--radius-sm);
             cursor: pointer;
-            transition: background var(--transition-fast), transform var(--transition-fast);
+            min-height: var(--touch-target-min);
+            transition: background var(--transition-fast);
         }
 
         .resume-btn:hover {
-            background: #388e3c;
-            transform: scale(1.05);
+            background: var(--color-btn-success-hover);
         }
 
         .resume-btn:active {
-            transform: scale(0.98);
+            box-shadow: var(--shadow-button-active);
+        }
+
+        .resume-btn:focus-visible {
+            outline: 2px solid var(--color-btn-focus-ring);
+            outline-offset: 2px;
         }
 
         .resume-btn.hidden {
@@ -543,7 +599,7 @@
     <!-- Start Screen -->
     <div id="start-screen" class="start-screen">
         <div class="start-content">
-            <h1 class="game-title">Strategery 2.0</h1>
+            <h1 class="game-title">Risk Game</h1>
             <div class="size-buttons">
                 <button class="size-btn" data-size="small">Small</button>
                 <button class="size-btn" data-size="medium">Medium</button>

@@ -185,7 +185,7 @@ export function assignInitialArmies(
         while (remaining > 0) {
             // Pick a random territory that can accept more armies
             const eligible = teamTerritories.filter(t => {
-                const maxArmies = t.type === 'big' ? 10 : 7;
+                const maxArmies = t.type === 'big' ? 13 : 7;
                 return t.armies < maxArmies;
             });
 
@@ -510,7 +510,7 @@ export function applyResupply(state: GameState): GameState {
         // Get eligible territories (can accept more armies)
         const eligible = newTerritories.filter(t => {
             if (!teamTerritoryIds.has(t.id)) return false;
-            const maxArmies = t.type === 'big' ? 10 : 7;
+            const maxArmies = t.type === 'big' ? 13 : 7;
             return t.armies < maxArmies;
         });
 

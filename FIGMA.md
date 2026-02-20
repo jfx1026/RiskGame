@@ -61,9 +61,8 @@ When your design is ready, update the values in `src/design-tokens.css` to match
 | `color-map-selection-border` | Selected territory (e.g. white) |
 | `color-map-valid-target-border` | Valid attack target (e.g. red) |
 | `color-map-valid-target-border-pulse` | Pulse animation accent |
-| `color-army-dot-fill` | Filled army dot |
-| `color-army-dot-stroke` | Army dot outline |
-| `color-army-dot-empty-stroke` | Empty army dot ring |
+| `color-army-dot-fill` | Filled army dot (3D sphere) |
+| `color-army-dot-empty-fill` | Empty army dot (dark inset hole) |
 
 ### Accent / semantic
 | Token | Purpose |
