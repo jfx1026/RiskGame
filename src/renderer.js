@@ -315,7 +315,8 @@ function renderArmyDotsAtPoint(territory, center, hexSize) {
                 highlight.setAttribute('ry', String(dotRadius * 0.3));
                 highlight.setAttribute('fill', 'rgba(255, 255, 255, 0.6)');
                 group.appendChild(highlight);
-            } else {
+            }
+            else {
                 // Empty dot: dark inset hole with territory-colored gradient
                 const emptyDot = createSvgElement('circle');
                 emptyDot.setAttribute('class', 'army-dot-empty');
@@ -635,9 +636,6 @@ function lightenColor(hexColor, percent) {
     // Convert back to hex
     return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 }
-/**
- * Darken a hex color by a percentage
- */
 function darkenColor(hexColor, percent) {
     // Remove # if present
     const hex = hexColor.replace('#', '');
@@ -723,6 +721,11 @@ export function selectTerritory(svgElement, territoryId) {
     const group = svgElement.querySelector(`.territory-group[data-territory-id="${territoryId}"]`);
     if (group) {
         group.classList.add('selected');
+        // Set inline fill to black for stroke elements (overrides inline attributes from updateTerritoryDisplay)
+        const strokeElements = group.querySelectorAll('.tile-stroke, .tile-connector-stroke');
+        strokeElements.forEach(el => {
+            el.setAttribute('fill', '#000000');
+        });
         // Bring to top
         if (group.parentNode) {
             group.parentNode.appendChild(group);
@@ -735,7 +738,19 @@ export function selectTerritory(svgElement, territoryId) {
 export function deselectAll(svgElement) {
     const groups = svgElement.querySelectorAll('.territory-group');
     groups.forEach(group => {
-        group.classList.remove('selected');
+        if (group.classList.contains('selected')) {
+            group.classList.remove('selected');
+            // Restore original stroke color based on territory fill
+            const fillElement = group.querySelector('.tile-base, .hex');
+            if (fillElement) {
+                const fillColor = fillElement.getAttribute('fill') || '#888888';
+                const strokeColor = lightenColor(fillColor, 0.4);
+                const strokeElements = group.querySelectorAll('.tile-stroke, .tile-connector-stroke');
+                strokeElements.forEach(el => {
+                    el.setAttribute('fill', strokeColor);
+                });
+            }
+        }
     });
 }
 /**
@@ -793,11 +808,16 @@ function createSvgElement(tagName) {
 export function highlightValidTargets(svgElement, targetIds) {
     // First clear any existing highlights
     clearHighlights(svgElement);
-    // Add 'valid-target' class to target territories
+    // Add 'valid-target' class to target territories and set white stroke
     for (const targetId of targetIds) {
         const group = svgElement.querySelector(`.territory-group[data-territory-id="${targetId}"]`);
         if (group) {
             group.classList.add('valid-target');
+            // Set inline fill to white for stroke elements
+            const strokeElements = group.querySelectorAll('.tile-stroke, .tile-connector-stroke');
+            strokeElements.forEach(el => {
+                el.setAttribute('fill', '#ffffff');
+            });
         }
     }
 }
@@ -807,8 +827,21 @@ export function highlightValidTargets(svgElement, targetIds) {
 export function clearHighlights(svgElement) {
     const groups = svgElement.querySelectorAll('.territory-group');
     groups.forEach(group => {
+        const wasValidTarget = group.classList.contains('valid-target');
         group.classList.remove('valid-target');
         group.classList.remove('combat-flash');
+        // Restore original stroke color for previously highlighted targets (but not if selected)
+        if (wasValidTarget && !group.classList.contains('selected')) {
+            const fillElement = group.querySelector('.tile-base, .hex');
+            if (fillElement) {
+                const fillColor = fillElement.getAttribute('fill') || '#888888';
+                const strokeColor = lightenColor(fillColor, 0.4);
+                const strokeElements = group.querySelectorAll('.tile-stroke, .tile-connector-stroke');
+                strokeElements.forEach(el => {
+                    el.setAttribute('fill', strokeColor);
+                });
+            }
+        }
     });
 }
 /**

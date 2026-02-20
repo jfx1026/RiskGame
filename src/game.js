@@ -280,10 +280,33 @@ export function attemptAttack(state, targetId) {
             eliminations++;
         }
     }
+    // Determine which territory should remain selected after attack:
+    // - If attacker wins: select captured territory (if it can attack)
+    // - If attacker loses: keep source selected (if it has >1 army)
+    // - Otherwise: deselect
+    let newSelectedTerritory = null;
+    if (combatResult.attackerWins) {
+        // Select the captured territory if it has armies to attack with
+        if (target.armies > 1) {
+            const targetTargets = getValidAttackTargets(target, state.territories);
+            if (targetTargets.length > 0) {
+                newSelectedTerritory = targetId;
+            }
+        }
+    }
+    else {
+        // Attack failed - keep source selected if it can still attack
+        if (source.armies > 1) {
+            const sourceTargets = getValidAttackTargets(source, state.territories);
+            if (sourceTargets.length > 0) {
+                newSelectedTerritory = source.id;
+            }
+        }
+    }
     // Return to select phase after attack
     return {
         ...state,
-        selectedTerritory: null,
+        selectedTerritory: newSelectedTerritory,
         phase: winner !== null ? 'gameOver' : 'select',
         lastCombatResult: combatResult,
         winner,

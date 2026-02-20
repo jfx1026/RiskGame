@@ -655,12 +655,21 @@ function handleHexClick(clickedTerritory: Territory, hex: Hex, event: MouseEvent
                     // Update territory displays after animation
                     updateTerritoryDisplay(svgElement, gameState!.territories.find(t => t.id === sourceTerritory.id)!);
                     updateTerritoryDisplay(svgElement, gameState!.territories.find(t => t.id === territory.id)!);
+
+                    // Update selection and highlights after animation completes
+                    deselectAll(svgElement);
+                    clearHighlights(svgElement);
+
+                    // If a territory is still selected after the attack, show it
+                    if (gameState!.selectedTerritory !== null) {
+                        selectTerritoryVisual(svgElement, gameState!.selectedTerritory);
+                        const newTargets = getSelectedTerritoryTargets(gameState!);
+                        if (newTargets.length > 0) {
+                            highlightValidTargets(svgElement, newTargets.map(t => t.id));
+                        }
+                    }
                 });
             }
-
-            // Clear selection and highlights
-            deselectAll(svgElement);
-            clearHighlights(svgElement);
 
             // Check for game over
             if (gameState.phase === 'gameOver' && gameState.winner !== null) {
