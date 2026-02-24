@@ -465,6 +465,77 @@
             margin: var(--space-xl) 0;
         }
 
+        /* ========== VICTORY CELEBRATION ========== */
+        .victory-content.celebration h2 {
+            font-size: var(--font-size-3xl);
+            text-shadow: 0 0 20px currentColor, 0 0 40px currentColor, 0 0 60px currentColor;
+            animation: victory-glow 1.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes victory-glow {
+            from {
+                text-shadow: 0 0 20px currentColor, 0 0 40px currentColor, 0 0 60px currentColor;
+                transform: scale(1);
+            }
+            to {
+                text-shadow: 0 0 30px currentColor, 0 0 60px currentColor, 0 0 90px currentColor;
+                transform: scale(1.02);
+            }
+        }
+
+        .confetti-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 2001;
+            overflow: hidden;
+        }
+
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            top: -20px;
+            animation: confetti-fall linear forwards;
+        }
+
+        .confetti.square {
+            border-radius: 2px;
+        }
+
+        .confetti.circle {
+            border-radius: 50%;
+        }
+
+        .confetti.ribbon {
+            width: 8px;
+            height: 20px;
+            border-radius: 2px;
+        }
+
+        @keyframes confetti-fall {
+            0% {
+                transform: translateY(0) rotate(0deg) scale(1);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(100vh) rotate(720deg) scale(0.5);
+                opacity: 0;
+            }
+        }
+
+        @keyframes confetti-sway {
+            0%, 100% {
+                transform: translateX(0);
+            }
+            50% {
+                transform: translateX(30px);
+            }
+        }
+
         /* ========== HIDDEN ELEMENTS (for JS compatibility) ========== */
         #turn-indicator,
         #stats,

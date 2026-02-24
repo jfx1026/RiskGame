@@ -408,7 +408,7 @@ function executeSurrender(): void {
             <h2 class="text-danger">Surrendered</h2>
             <p>${humanTeam.name} has surrendered the game</p>
             <div class="modal-buttons">
-                <button class="primary-btn" id="return-to-menu-btn">Menu</button>
+                <button class="primary-btn" id="return-to-menu-btn">New Game</button>
             </div>
         </div>
     `;
@@ -535,16 +535,24 @@ function showGameStartMessage(humanTeam: Team): void {
 
         logCombatResult(`You are playing as ${humanTeam.name}`);
 
-        // Reset state flags
-        isComputerPlaying = false;
-        endTurnButton.disabled = false;
+        // Check who goes first
+        const firstTeam = getCurrentTeam(gameState);
+
+        // Set state flags based on who goes first
+        if (firstTeam.isHuman) {
+            isComputerPlaying = false;
+            endTurnButton.disabled = false;
+        } else {
+            // Computer goes first - set flag BEFORE calling async function
+            isComputerPlaying = true;
+            endTurnButton.disabled = true;
+        }
 
         // Update UI to show who's going first
         updateTurnIndicator();
         updateStats();
 
         // If first player is computer, run computer turns
-        const firstTeam = getCurrentTeam(gameState);
         if (!firstTeam.isHuman) {
             runComputerTurns();
         }
@@ -745,31 +753,33 @@ function handleEndTurn(): void {
     // If next player is computer, run computer turns
     const nextTeam = getCurrentTeam(gameState);
     if (!nextTeam.isHuman) {
+        // Set flag BEFORE calling async function to prevent race condition
+        isComputerPlaying = true;
+        endTurnButton.disabled = true;
         runComputerTurns();
     }
 }
 
 /**
  * Run computer turns until it's a human player's turn
+ * NOTE: Caller should set isComputerPlaying = true before calling this function
  */
 async function runComputerTurns(): Promise<void> {
     if (!gameState || gameState.phase === 'gameOver') {
+        isComputerPlaying = false;
         return;
     }
 
     // Don't run until game has started
     if (!gameStarted) {
-        return;
-    }
-
-    // Prevent concurrent calls
-    if (isComputerPlaying) {
+        isComputerPlaying = false;
         return;
     }
 
     // Capture current game generation to detect if game changes mid-execution
     const thisGameGeneration = gameGeneration;
 
+    // Ensure flags are set (should already be set by caller, but ensure consistency)
     isComputerPlaying = true;
     endTurnButton.disabled = true;
 
@@ -1142,27 +1152,111 @@ function showVictory(winnerId: number): void {
     const isHumanWinner = winner.isHuman;
     const title = isHumanWinner ? 'Victory!' : 'Defeat';
     const titleClass = isHumanWinner ? '' : 'text-danger';
+    const contentClass = isHumanWinner ? 'victory-content celebration' : 'victory-content';
 
     // Create victory/defeat overlay
     const overlay = document.createElement('div');
     overlay.className = 'victory-overlay';
     overlay.id = 'victory-overlay';
     overlay.innerHTML = `
-        <div class="victory-content">
+        <div class="${contentClass}">
             <h2 class="${titleClass}" style="color: ${isHumanWinner ? winner.color : ''}">${title}</h2>
             <p>${winner.name} conquered all territories in ${gameState.turnNumber} turns</p>
             <div class="modal-buttons">
-                <button class="primary-btn" id="victory-menu-btn">Menu</button>
+                <button class="primary-btn" id="victory-menu-btn">New Game</button>
             </div>
         </div>
     `;
     document.body.appendChild(overlay);
 
+    // Spawn confetti celebration for human winner
+    let confettiInterval: number | null = null;
+    if (isHumanWinner) {
+        confettiInterval = spawnConfetti(winner.color);
+    }
+
     // Add event listener for menu button
     document.getElementById('victory-menu-btn')?.addEventListener('click', () => {
+        // Stop confetti and remove container
+        if (confettiInterval !== null) {
+            clearInterval(confettiInterval);
+        }
+        document.getElementById('confetti-container')?.remove();
         overlay.remove();
         showStartScreen();
     });
+}
+
+/**
+ * Spawn confetti particles for celebration (runs continuously)
+ * Returns the interval ID so it can be stopped later
+ */
+function spawnConfetti(teamColor: string): number {
+    const container = document.createElement('div');
+    container.className = 'confetti-container';
+    container.id = 'confetti-container';
+    document.body.appendChild(container);
+
+    const colors = [
+        teamColor,
+        '#FFD700', // Gold
+        '#FF6B6B', // Coral
+        '#4ECDC4', // Teal
+        '#A8E6CF', // Mint
+        '#FFE66D', // Yellow
+        '#FF8C42', // Orange
+        '#ffffff', // White
+    ];
+
+    const shapes = ['square', 'circle', 'ribbon'];
+
+    // Initial burst of confetti
+    for (let i = 0; i < 50; i++) {
+        setTimeout(() => {
+            createConfettiPiece(container, colors, shapes);
+        }, i * 30);
+    }
+
+    // Continuous confetti stream
+    const intervalId = window.setInterval(() => {
+        createConfettiPiece(container, colors, shapes);
+    }, 100);
+
+    return intervalId;
+}
+
+/**
+ * Create a single confetti piece
+ */
+function createConfettiPiece(
+    container: HTMLElement,
+    colors: string[],
+    shapes: string[]
+): void {
+    const confetti = document.createElement('div');
+    const shape = shapes[Math.floor(Math.random() * shapes.length)];
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    const left = Math.random() * 100;
+    const duration = 2 + Math.random() * 2;
+    const delay = Math.random() * 0.5;
+    const size = 8 + Math.random() * 8;
+
+    confetti.className = `confetti ${shape}`;
+    confetti.style.cssText = `
+        left: ${left}%;
+        background-color: ${color};
+        width: ${shape === 'ribbon' ? size * 0.6 : size}px;
+        height: ${shape === 'ribbon' ? size * 2 : size}px;
+        animation-duration: ${duration}s;
+        animation-delay: ${delay}s;
+    `;
+
+    container.appendChild(confetti);
+
+    // Remove confetti piece after animation
+    setTimeout(() => {
+        confetti.remove();
+    }, (duration + delay) * 1000);
 }
 
 // Track mouse movement for tooltip positioning
