@@ -29,6 +29,7 @@ let isComputerPlaying = false; // True when computer is taking its turn
 let isFastForward = false; // True when fast forward is enabled
 let gameGeneration = 0; // Incremented each new game to invalidate stale async ops
 let gameStarted = false; // True only after user clicks "Start Game"
+let confettiIntervalId = null; // Track confetti interval for cleanup
 const GAME_CONFIGS = {
     small: {
         map: {
@@ -130,7 +131,19 @@ function init() {
  * Handle back button - returns to start screen
  */
 function handleBack() {
+    stopConfetti();
     showStartScreen();
+}
+/**
+ * Stop any running confetti animation and clean up
+ */
+function stopConfetti() {
+    // Clear any confetti interval (stored globally when victory screen is shown)
+    if (confettiIntervalId !== null) {
+        clearInterval(confettiIntervalId);
+        confettiIntervalId = null;
+    }
+    document.getElementById('confetti-container')?.remove();
 }
 /**
  * Show the start screen and hide the game
@@ -158,6 +171,8 @@ function showGameScreen() {
  * Start a new game with the specified size
  */
 function startGameWithSize(size) {
+    // Clean up any running confetti from previous game
+    stopConfetti();
     // Reset game state for new game
     gameState = null;
     currentMap = null;
@@ -699,14 +714,22 @@ function showDefeat() {
     // Create defeat overlay
     const overlay = document.createElement('div');
     overlay.className = 'victory-overlay';
+    overlay.id = 'defeat-overlay';
     overlay.innerHTML = `
         <div class="victory-content">
             <h2 class="text-danger">Defeat!</h2>
             <p>${humanTeam.name} has been eliminated</p>
-            <button onclick="this.parentElement.parentElement.remove()">Close</button>
+            <div class="modal-buttons">
+                <button class="primary-btn" id="defeat-menu-btn">New Game</button>
+            </div>
         </div>
     `;
     document.body.appendChild(overlay);
+    // Add event listener for menu button
+    document.getElementById('defeat-menu-btn')?.addEventListener('click', () => {
+        overlay.remove();
+        showStartScreen();
+    });
 }
 /**
  * Execute a single computer player's turn
@@ -972,17 +995,12 @@ function showVictory(winnerId) {
     `;
     document.body.appendChild(overlay);
     // Spawn confetti celebration for human winner
-    let confettiInterval = null;
     if (isHumanWinner) {
-        confettiInterval = spawnConfetti(winner.color);
+        confettiIntervalId = spawnConfetti(winner.color);
     }
     // Add event listener for menu button
     document.getElementById('victory-menu-btn')?.addEventListener('click', () => {
-        // Stop confetti and remove container
-        if (confettiInterval !== null) {
-            clearInterval(confettiInterval);
-        }
-        document.getElementById('confetti-container')?.remove();
+        stopConfetti();
         overlay.remove();
         showStartScreen();
     });

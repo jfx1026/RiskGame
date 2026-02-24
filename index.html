@@ -527,12 +527,16 @@
             }
         }
 
-        @keyframes confetti-sway {
-            0%, 100% {
-                transform: translateX(0);
+        /* Reduced motion support for accessibility */
+        @media (prefers-reduced-motion: reduce) {
+            .victory-content.celebration h2 {
+                animation: none;
+                text-shadow: 0 0 20px currentColor;
             }
-            50% {
-                transform: translateX(30px);
+
+            .confetti {
+                animation: none;
+                display: none;
             }
         }
 
