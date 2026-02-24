@@ -61,6 +61,7 @@ let isFastForward = false;  // True when fast forward is enabled
 let gameGeneration = 0;  // Incremented each new game to invalidate stale async ops
 let gameStarted = false;  // True only after user clicks "Start Game"
 let confettiIntervalId: number | null = null;  // Track confetti interval for cleanup
+let confettiTimeoutIds: number[] = [];  // Track confetti burst timeouts for cleanup
 
 // Game configuration for each map size
 interface GameConfig {
@@ -190,6 +191,10 @@ function handleBack(): void {
  * Stop any running confetti animation and clean up
  */
 function stopConfetti(): void {
+    // Clear all pending burst timeouts
+    confettiTimeoutIds.forEach(id => clearTimeout(id));
+    confettiTimeoutIds = [];
+
     // Clear any confetti interval (stored globally when victory screen is shown)
     if (confettiIntervalId !== null) {
         clearInterval(confettiIntervalId);
@@ -264,9 +269,12 @@ function showNewGameConfirmation(size: 'small' | 'medium' | 'large'): void {
     const overlay = document.createElement('div');
     overlay.className = 'victory-overlay';
     overlay.id = 'new-game-modal';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-labelledby', 'new-game-modal-title');
     overlay.innerHTML = `
         <div class="victory-content">
-            <h2 class="text-danger">Abandon Game?</h2>
+            <h2 class="text-danger" id="new-game-modal-title">Abandon Game?</h2>
             <p>Starting a new game will surrender your current game.</p>
             <div class="modal-buttons">
                 <button class="cancel-btn" id="cancel-new-game-btn">Cancel</button>
@@ -276,14 +284,19 @@ function showNewGameConfirmation(size: 'small' | 'medium' | 'large'): void {
     `;
     document.body.appendChild(overlay);
 
-    document.getElementById('cancel-new-game-btn')?.addEventListener('click', () => {
-        overlay.remove();
-    });
-
-    document.getElementById('confirm-new-game-btn')?.addEventListener('click', () => {
-        overlay.remove();
-        startGameWithSize(size);
-    });
+    // Use event delegation for proper cleanup
+    const handleClick = (e: Event) => {
+        const target = e.target as HTMLElement;
+        if (target.id === 'cancel-new-game-btn') {
+            overlay.removeEventListener('click', handleClick);
+            overlay.remove();
+        } else if (target.id === 'confirm-new-game-btn') {
+            overlay.removeEventListener('click', handleClick);
+            overlay.remove();
+            startGameWithSize(size);
+        }
+    };
+    overlay.addEventListener('click', handleClick);
 }
 
 /**
@@ -380,30 +393,42 @@ function showSurrenderConfirmation(): void {
     const overlay = document.createElement('div');
     overlay.className = 'victory-overlay';
     overlay.id = 'surrender-modal';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-labelledby', 'surrender-modal-title');
     overlay.innerHTML = `
         <div class="victory-content">
-            <h2 class="text-danger">Surrender?</h2>
+            <h2 class="text-danger" id="surrender-modal-title">Surrender?</h2>
             <p>Are you sure you want to surrender the game?</p>
             <div class="modal-buttons">
-                <button class="cancel-btn" onclick="document.getElementById('surrender-modal').remove()">Cancel</button>
+                <button class="cancel-btn" id="cancel-surrender-btn">Cancel</button>
                 <button class="confirm-btn" id="confirm-surrender-btn">Surrender</button>
             </div>
         </div>
     `;
     document.body.appendChild(overlay);
 
-    // Add event listener for confirm button
-    document.getElementById('confirm-surrender-btn')?.addEventListener('click', () => {
-        overlay.remove();
-        executeSurrender();
-    });
+    // Use event delegation for proper cleanup
+    const handleClick = (e: Event) => {
+        const target = e.target as HTMLElement;
+        if (target.id === 'cancel-surrender-btn') {
+            overlay.removeEventListener('click', handleClick);
+            overlay.remove();
+        } else if (target.id === 'confirm-surrender-btn') {
+            overlay.removeEventListener('click', handleClick);
+            overlay.remove();
+            executeSurrender();
+        }
+    };
+    overlay.addEventListener('click', handleClick);
 }
 
 /**
  * Execute the surrender - show defeat screen and return to menu
  */
 function executeSurrender(): void {
-    if (!gameState) return;
+    // Guard against calling when game is already over
+    if (!gameState || gameState.phase === 'gameOver') return;
 
     const humanTeam = gameState.teams.find(t => t.isHuman);
     if (!humanTeam) return;
@@ -420,9 +445,12 @@ function executeSurrender(): void {
     const overlay = document.createElement('div');
     overlay.className = 'victory-overlay';
     overlay.id = 'defeat-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-labelledby', 'defeat-overlay-title');
     overlay.innerHTML = `
         <div class="victory-content">
-            <h2 class="text-danger">Surrendered</h2>
+            <h2 class="text-danger" id="defeat-overlay-title">Surrendered</h2>
             <p>${humanTeam.name} has surrendered the game</p>
             <div class="modal-buttons">
                 <button class="primary-btn" id="return-to-menu-btn">New Game</button>
@@ -431,11 +459,16 @@ function executeSurrender(): void {
     `;
     document.body.appendChild(overlay);
 
-    // Add event listener for menu button
-    document.getElementById('return-to-menu-btn')?.addEventListener('click', () => {
-        overlay.remove();
-        showStartScreen();
-    });
+    // Use event delegation for proper cleanup
+    const handleClick = (e: Event) => {
+        const target = e.target as HTMLElement;
+        if (target.id === 'return-to-menu-btn') {
+            overlay.removeEventListener('click', handleClick);
+            overlay.remove();
+            showStartScreen();
+        }
+    };
+    overlay.addEventListener('click', handleClick);
 
     updateTurnIndicator();
 }
@@ -472,8 +505,10 @@ function generateAndRenderNewMap(): void {
     isFastForward = false;
     gameStarted = false;  // Game hasn't started until user clicks "Start Game"
 
-    // Remove any existing game modals
-    document.getElementById('game-start-modal')?.remove();
+    // Remove any existing game modals (by specific ID for completeness)
+    const modalIds = ['game-start-modal', 'defeat-overlay', 'victory-overlay', 'new-game-modal', 'surrender-modal'];
+    modalIds.forEach(id => document.getElementById(id)?.remove());
+    // Fallback: remove any remaining overlay-class elements
     document.querySelectorAll('.victory-overlay').forEach(el => el.remove());
 
     // Get config for current size
@@ -527,9 +562,12 @@ function showGameStartMessage(humanTeam: Team): void {
     const overlay = document.createElement('div');
     overlay.className = 'victory-overlay';
     overlay.id = 'game-start-modal';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-labelledby', 'game-start-modal-title');
     overlay.innerHTML = `
         <div class="game-start-content">
-            <h2>New Game</h2>
+            <h2 id="game-start-modal-title">New Game</h2>
             <p>You are playing as:</p>
             <div class="team-announcement" style="color: ${humanTeam.color}">${humanTeam.name}</div>
             <p>Conquer all territories to win!</p>
@@ -538,42 +576,47 @@ function showGameStartMessage(humanTeam: Team): void {
     `;
     document.body.appendChild(overlay);
 
-    // Add event listener for start button
-    document.getElementById('start-game-btn')?.addEventListener('click', () => {
-        overlay.remove();
+    // Use event delegation for proper cleanup
+    const handleClick = (e: Event) => {
+        const target = e.target as HTMLElement;
+        if (target.id === 'start-game-btn') {
+            overlay.removeEventListener('click', handleClick);
+            overlay.remove();
 
-        if (!gameState) return;
+            if (!gameState) return;
 
-        // NOW the game officially starts
-        gameStarted = true;
+            // NOW the game officially starts
+            gameStarted = true;
 
-        // Randomly select who goes first
-        gameState = beginGame(gameState);
+            // Randomly select who goes first
+            gameState = beginGame(gameState);
 
-        logCombatResult(`You are playing as ${humanTeam.name}`);
+            logCombatResult(`You are playing as ${humanTeam.name}`);
 
-        // Check who goes first
-        const firstTeam = getCurrentTeam(gameState);
+            // Check who goes first
+            const firstTeam = getCurrentTeam(gameState);
 
-        // Set state flags based on who goes first
-        if (firstTeam.isHuman) {
-            isComputerPlaying = false;
-            endTurnButton.disabled = false;
-        } else {
-            // Computer goes first - set flag BEFORE calling async function
-            isComputerPlaying = true;
-            endTurnButton.disabled = true;
+            // Set state flags based on who goes first
+            if (firstTeam.isHuman) {
+                isComputerPlaying = false;
+                endTurnButton.disabled = false;
+            } else {
+                // Computer goes first - set flag BEFORE calling async function
+                isComputerPlaying = true;
+                endTurnButton.disabled = true;
+            }
+
+            // Update UI to show who's going first
+            updateTurnIndicator();
+            updateStats();
+
+            // If first player is computer, run computer turns
+            if (!firstTeam.isHuman) {
+                runComputerTurns();
+            }
         }
-
-        // Update UI to show who's going first
-        updateTurnIndicator();
-        updateStats();
-
-        // If first player is computer, run computer turns
-        if (!firstTeam.isHuman) {
-            runComputerTurns();
-        }
-    });
+    };
+    overlay.addEventListener('click', handleClick);
 }
 
 /**
@@ -675,20 +718,30 @@ function handleHexClick(clickedTerritory: Territory, hex: Hex, event: MouseEvent
                 console.log(`Defender rolls: ${result.defenderRolls.join(', ')} (highest: ${result.defenderHighest})`);
                 console.log(`Result: ${result.attackerWins ? 'Attacker wins!' : 'Defender wins!'}`);
 
+                // Capture game generation to detect if game changes during animation
+                const currentGeneration = gameGeneration;
+
                 // Animate combat
                 showCombatAnimation(svgElement, result, sourceTerritory.id, territory.id).then(() => {
-                    // Update territory displays after animation
-                    updateTerritoryDisplay(svgElement, gameState!.territories.find(t => t.id === sourceTerritory.id)!);
-                    updateTerritoryDisplay(svgElement, gameState!.territories.find(t => t.id === territory.id)!);
+                    // Only update if this is still the same game
+                    if (gameGeneration !== currentGeneration || !gameState) {
+                        return;
+                    }
+
+                    // Update territory displays after animation (with null safety)
+                    const updatedSource = gameState.territories.find(t => t.id === sourceTerritory.id);
+                    const updatedTarget = gameState.territories.find(t => t.id === territory.id);
+                    if (updatedSource) updateTerritoryDisplay(svgElement, updatedSource);
+                    if (updatedTarget) updateTerritoryDisplay(svgElement, updatedTarget);
 
                     // Update selection and highlights after animation completes
                     deselectAll(svgElement);
                     clearHighlights(svgElement);
 
                     // If a territory is still selected after the attack, show it
-                    if (gameState!.selectedTerritory !== null) {
-                        selectTerritoryVisual(svgElement, gameState!.selectedTerritory);
-                        const newTargets = getSelectedTerritoryTargets(gameState!);
+                    if (gameState.selectedTerritory !== null) {
+                        selectTerritoryVisual(svgElement, gameState.selectedTerritory);
+                        const newTargets = getSelectedTerritoryTargets(gameState);
                         if (newTargets.length > 0) {
                             highlightValidTargets(svgElement, newTargets.map(t => t.id));
                         }
@@ -867,9 +920,12 @@ function showDefeat(): void {
     const overlay = document.createElement('div');
     overlay.className = 'victory-overlay';
     overlay.id = 'defeat-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-labelledby', 'defeat-overlay-title');
     overlay.innerHTML = `
         <div class="victory-content">
-            <h2 class="text-danger">Defeat!</h2>
+            <h2 class="text-danger" id="defeat-overlay-title">Defeat!</h2>
             <p>${humanTeam.name} has been eliminated</p>
             <div class="modal-buttons">
                 <button class="primary-btn" id="defeat-menu-btn">New Game</button>
@@ -878,11 +934,16 @@ function showDefeat(): void {
     `;
     document.body.appendChild(overlay);
 
-    // Add event listener for menu button
-    document.getElementById('defeat-menu-btn')?.addEventListener('click', () => {
-        overlay.remove();
-        showStartScreen();
-    });
+    // Use event delegation for proper cleanup
+    const handleClick = (e: Event) => {
+        const target = e.target as HTMLElement;
+        if (target.id === 'defeat-menu-btn') {
+            overlay.removeEventListener('click', handleClick);
+            overlay.remove();
+            showStartScreen();
+        }
+    };
+    overlay.addEventListener('click', handleClick);
 }
 
 /**
@@ -1184,9 +1245,12 @@ function showVictory(winnerId: number): void {
     const overlay = document.createElement('div');
     overlay.className = 'victory-overlay';
     overlay.id = 'victory-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-labelledby', 'victory-overlay-title');
     overlay.innerHTML = `
         <div class="${contentClass}">
-            <h2 class="${titleClass}" style="color: ${isHumanWinner ? winner.color : ''}">${title}</h2>
+            <h2 class="${titleClass}" id="victory-overlay-title" style="color: ${isHumanWinner ? winner.color : ''}">${title}</h2>
             <p>${winner.name} conquered all territories in ${gameState.turnNumber} turns</p>
             <div class="modal-buttons">
                 <button class="primary-btn" id="victory-menu-btn">New Game</button>
@@ -1200,12 +1264,17 @@ function showVictory(winnerId: number): void {
         confettiIntervalId = spawnConfetti(winner.color);
     }
 
-    // Add event listener for menu button
-    document.getElementById('victory-menu-btn')?.addEventListener('click', () => {
-        stopConfetti();
-        overlay.remove();
-        showStartScreen();
-    });
+    // Use event delegation for proper cleanup
+    const handleClick = (e: Event) => {
+        const target = e.target as HTMLElement;
+        if (target.id === 'victory-menu-btn') {
+            overlay.removeEventListener('click', handleClick);
+            stopConfetti();
+            overlay.remove();
+            showStartScreen();
+        }
+    };
+    overlay.addEventListener('click', handleClick);
 }
 
 /**
@@ -1231,11 +1300,15 @@ function spawnConfetti(teamColor: string): number {
 
     const shapes = ['square', 'circle', 'ribbon'];
 
+    // Clear any existing timeout IDs and start fresh
+    confettiTimeoutIds = [];
+
     // Initial burst of confetti
     for (let i = 0; i < 50; i++) {
-        setTimeout(() => {
+        const timeoutId = window.setTimeout(() => {
             createConfettiPiece(container, colors, shapes);
         }, i * 30);
+        confettiTimeoutIds.push(timeoutId);
     }
 
     // Continuous confetti stream

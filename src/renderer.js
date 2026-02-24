@@ -5,6 +5,7 @@
 import { hexToPixel, hexCorners, getHexBounds, HEX_SIZE, parseHexKey, hexKey, hexNeighbors } from './hex.js';
 import { getTerritoryHexes } from './territory.js';
 import { BASE_TILE, OVER_CONNECTORS, UNDER_CONNECTORS, STROKE_CONNECTORS, TILE_VIEWBOX_SIZE, DIRECTION_NAMES } from './tilePaths.js';
+import { MAX_ARMIES_BIG_TERRITORY, MAX_ARMIES_SMALL_TERRITORY } from './game.js';
 const DEFAULT_OPTIONS = {
     hexSize: HEX_SIZE,
     padding: 40,
@@ -248,9 +249,9 @@ function renderArmyDotsAtPoint(territory, center, hexSize) {
     group.setAttribute('class', 'army-dots');
     const armies = territory.armies;
     // Hex grid row patterns: [dots per row]
-    // Large: 4-5-4 = 13 total, Small: 2-3-2 = 7 total
+    // Large: 4-5-4 = MAX_ARMIES_BIG_TERRITORY total, Small: 2-3-2 = MAX_ARMIES_SMALL_TERRITORY total
     const rowPattern = territory.type === 'big' ? [4, 5, 4] : [2, 3, 2];
-    const maxCapacity = territory.type === 'big' ? 13 : 7;
+    const maxCapacity = territory.type === 'big' ? MAX_ARMIES_BIG_TERRITORY : MAX_ARMIES_SMALL_TERRITORY;
     // Dot configuration (15% smaller than original)
     const dotRadius = hexSize * 0.094;
     const dotSpacingX = dotRadius * 2.5;
