@@ -13,6 +13,7 @@ import {
     highlightValidTargets,
     clearHighlights,
     showCombatAnimation,
+    showDiceAnimation,
     updateTerritoryDisplay,
     markCurrentPlayerTerritories
 } from './renderer.js';
@@ -636,7 +637,7 @@ function handleSvgBackgroundClick(event: MouseEvent): void {
 /**
  * Handle hex click - implements selection and attack logic
  */
-function handleHexClick(clickedTerritory: Territory, hex: Hex, event: MouseEvent): void {
+async function handleHexClick(clickedTerritory: Territory, hex: Hex, event: MouseEvent): Promise<void> {
     if (!gameState || gameState.phase === 'gameOver') {
         return;
     }
@@ -700,7 +701,10 @@ function handleHexClick(clickedTerritory: Territory, hex: Hex, event: MouseEvent
         if (isValidTarget) {
             // Execute attack
             const sourceTerritory = gameState.territories.find(t => t.id === gameState!.selectedTerritory);
-            const oldState = gameState;
+
+            // Capture colors before attack (defender color changes on conquest)
+            const attackerColor = sourceTerritory?.color || '#888';
+            const defenderColor = territory.color;
 
             gameState = attemptAttack(gameState, territory.id);
 
@@ -721,32 +725,33 @@ function handleHexClick(clickedTerritory: Territory, hex: Hex, event: MouseEvent
                 // Capture game generation to detect if game changes during animation
                 const currentGeneration = gameGeneration;
 
-                // Animate combat
-                showCombatAnimation(svgElement, result, sourceTerritory.id, territory.id).then(() => {
-                    // Only update if this is still the same game
-                    if (gameGeneration !== currentGeneration || !gameState) {
-                        return;
+                // Show dice animation (non-blocking) and combat animation in parallel
+                showDiceAnimation(result, attackerColor, defenderColor);
+                await showCombatAnimation(svgElement, result, sourceTerritory.id, territory.id);
+
+                // Only update if this is still the same game
+                if (gameGeneration !== currentGeneration || !gameState) {
+                    return;
+                }
+
+                // Update territory displays after animation (with null safety)
+                const updatedSource = gameState.territories.find(t => t.id === sourceTerritory.id);
+                const updatedTarget = gameState.territories.find(t => t.id === territory.id);
+                if (updatedSource) updateTerritoryDisplay(svgElement, updatedSource);
+                if (updatedTarget) updateTerritoryDisplay(svgElement, updatedTarget);
+
+                // Update selection and highlights after animation completes
+                deselectAll(svgElement);
+                clearHighlights(svgElement);
+
+                // If a territory is still selected after the attack, show it
+                if (gameState.selectedTerritory !== null) {
+                    selectTerritoryVisual(svgElement, gameState.selectedTerritory);
+                    const newTargets = getSelectedTerritoryTargets(gameState);
+                    if (newTargets.length > 0) {
+                        highlightValidTargets(svgElement, newTargets.map(t => t.id));
                     }
-
-                    // Update territory displays after animation (with null safety)
-                    const updatedSource = gameState.territories.find(t => t.id === sourceTerritory.id);
-                    const updatedTarget = gameState.territories.find(t => t.id === territory.id);
-                    if (updatedSource) updateTerritoryDisplay(svgElement, updatedSource);
-                    if (updatedTarget) updateTerritoryDisplay(svgElement, updatedTarget);
-
-                    // Update selection and highlights after animation completes
-                    deselectAll(svgElement);
-                    clearHighlights(svgElement);
-
-                    // If a territory is still selected after the attack, show it
-                    if (gameState.selectedTerritory !== null) {
-                        selectTerritoryVisual(svgElement, gameState.selectedTerritory);
-                        const newTargets = getSelectedTerritoryTargets(gameState);
-                        if (newTargets.length > 0) {
-                            highlightValidTargets(svgElement, newTargets.map(t => t.id));
-                        }
-                    }
-                });
+                }
             }
 
             // Check for game over
@@ -980,6 +985,10 @@ async function executeComputerTurn(): Promise<void> {
         // Select the source territory in game state (required for attemptAttack)
         gameState = selectTerritory(gameState, source.id);
 
+        // Capture colors before attack (defender color changes on conquest)
+        const attackerColor = source.color;
+        const defenderColor = target.color;
+
         // Execute the attack
         gameState = attemptAttack(gameState, target.id);
         attacksThisTurn++;
@@ -992,7 +1001,8 @@ async function executeComputerTurn(): Promise<void> {
             console.log(`Computer attack: ${source.name} vs ${target.name}`);
             console.log(`Result: ${result.attackerWins ? 'Victory!' : 'Defended'}`);
 
-            // Show combat animation
+            // Show dice animation (non-blocking) and combat animation in parallel
+            showDiceAnimation(result, attackerColor, defenderColor);
             await showCombatAnimation(svgElement, result, source.id, target.id);
 
             // Update territory displays

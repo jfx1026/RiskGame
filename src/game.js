@@ -369,6 +369,9 @@ export function calculateResupply(state) {
     }
     // Bonus for eliminating players: +3 per elimination
     reinforcements += state.eliminationsThisTurn * 3;
+    // Cap reinforcements to prevent late-game stalemates
+    const MAX_REINFORCEMENTS = 12;
+    reinforcements = Math.min(reinforcements, MAX_REINFORCEMENTS);
     // Minimum of 1 reinforcement (if they have any territories)
     return totalTerritories > 0 ? Math.max(1, reinforcements) : 0;
 }

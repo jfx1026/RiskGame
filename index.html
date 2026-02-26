@@ -309,6 +309,89 @@
             100% { filter: brightness(1.0); }
         }
 
+        /* ========== DICE BAR ========== */
+        .dice-bar {
+            position: fixed;
+            bottom: 20px;
+            left: 0;
+            right: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1500;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s ease-out;
+        }
+
+        .dice-bar.visible {
+            opacity: 1;
+        }
+
+        .dice-bar.fading {
+            opacity: 0;
+        }
+
+        #attacker-dice {
+            position: absolute;
+            right: calc(50% + 24px);
+            justify-content: flex-end;
+        }
+
+        #defender-dice {
+            position: absolute;
+            left: calc(50% + 24px);
+            justify-content: flex-start;
+        }
+
+        .dice-group {
+            display: flex;
+            gap: 4px;
+            padding: 8px 12px;
+            border-radius: 12px;
+            transition: box-shadow 0.2s ease-out;
+        }
+
+        .dice-group.winner {
+            box-shadow: 0 0 0 3px #00FFFF, 0 0 16px 4px rgba(0, 255, 255, 0.5);
+        }
+
+        .die {
+            width: 36px;
+            height: 36px;
+            border-radius: 6px;
+            box-sizing: border-box;
+            border: 3px solid transparent;
+            transition: border-color 0.15s ease-out;
+        }
+
+        .die.win {
+            border-color: #00FFFF;
+        }
+
+        .die.lose {
+            border-color: #AA0000;
+        }
+
+        .dice-arrow {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            margin: 0 8px;
+        }
+
+        .dice-arrow svg {
+            width: 24px;
+            height: 32px;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+        }
+
+        .die svg {
+            width: 100%;
+            height: 100%;
+        }
+
         .army-dots {
             pointer-events: none;
         }
@@ -732,6 +815,17 @@
     <div id="stats"></div>
     <div id="combat-log"></div>
     <div id="tooltip" role="tooltip"></div>
+
+    <!-- Dice bar for combat visualization -->
+    <div id="dice-bar" class="dice-bar" aria-hidden="true">
+        <div class="dice-group" id="attacker-dice"></div>
+        <div class="dice-arrow" id="dice-arrow">
+            <svg viewBox="0 0 24 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 4L20 16L4 28" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </div>
+        <div class="dice-group" id="defender-dice"></div>
+    </div>
 
     <noscript>
         <p style="color: #f88; text-align: center; margin-top: 20px;">

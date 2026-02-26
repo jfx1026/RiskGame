@@ -109,12 +109,16 @@ function calculateAttackScore(
             score += 10;
             // Extra bonus for attacking strong targets (glory!)
             if (target.armies >= 4) score += 5;
+            // Big bonus for eliminating a player - Pink loves the kill
+            if (wouldEliminatePlayer(target, state.territories)) score += 25;
             break;
 
         case 'strategic':
             // Coral: Only values attacks with clear advantage
             if (ratio < 1.0) score -= 10;  // Penalize disadvantaged attacks
             if (ratio >= 1.5) score += 5;  // Bonus for strong advantage
+            // Bonus for eliminating a player - strategic advantage
+            if (wouldEliminatePlayer(target, state.territories)) score += 15;
             break;
 
         case 'positional':
@@ -124,6 +128,10 @@ function calculateAttackScore(
             // Bonus for territories that border multiple enemies
             const enemyNeighbors = countEnemyNeighbors(target, state.territories, teamId);
             score += enemyNeighbors * 2;
+            // Only go for elimination if the target is also a good position
+            if (wouldEliminatePlayer(target, state.territories) && targetNeighborCount >= 3) {
+                score += 10;
+            }
             break;
 
         case 'longterm':
@@ -148,6 +156,15 @@ function calculateAttackScore(
     }
 
     return score;
+}
+
+/**
+ * Check if capturing this territory would eliminate its owner
+ */
+function wouldEliminatePlayer(target: Territory, territories: Territory[]): boolean {
+    if (target.owner === undefined) return false;
+    const ownerTerritories = territories.filter(t => t.owner === target.owner);
+    return ownerTerritories.length === 1;  // This is their last territory
 }
 
 /**

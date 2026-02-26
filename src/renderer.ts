@@ -1161,3 +1161,157 @@ export function markCurrentPlayerTerritories(
         }
     }
 }
+
+/**
+ * Dice sprite sheet positions (400x250 sprite with 100x100 dice)
+ * Layout: Top row = 1,2,3 | Bottom row = 4,5,6
+ */
+const DICE_VIEWBOX: Record<number, string> = {
+    1: '0 0 100 100',
+    2: '150 0 100 100',
+    3: '300 0 100 100',
+    4: '0 150 100 100',
+    5: '150 150 100 100',
+    6: '300 150 100 100'
+};
+
+// Cache the loaded SVG content
+let diceSvgContent: string | null = null;
+
+/**
+ * Load the dice SVG sprite sheet
+ */
+async function loadDiceSvg(): Promise<string> {
+    if (diceSvgContent) return diceSvgContent;
+
+    try {
+        const response = await fetch('./src/assets/Dice.svg');
+        diceSvgContent = await response.text();
+    } catch (e) {
+        console.error('Failed to load dice SVG:', e);
+        diceSvgContent = '';
+    }
+    return diceSvgContent;
+}
+
+// Preload dice SVG on module load
+loadDiceSvg();
+
+/**
+ * Create a die element with the given value using the sprite sheet
+ */
+function createDieElement(value: number): HTMLDivElement {
+    const die = document.createElement('div');
+    die.className = 'die';
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', DICE_VIEWBOX[value] || DICE_VIEWBOX[1]);
+
+    // Create a use element that references the dice sprite
+    const image = document.createElementNS('http://www.w3.org/2000/svg', 'image');
+    image.setAttribute('href', './src/assets/Dice.svg');
+    image.setAttribute('width', '400');
+    image.setAttribute('height', '250');
+
+    svg.appendChild(image);
+    die.appendChild(svg);
+    return die;
+}
+
+/**
+ * Show dice bar for combat visualization
+ * Sequence: Show dice → highlight winners/losers → fade out
+ */
+export function showDiceAnimation(
+    result: CombatResult,
+    attackerColor: string,
+    defenderColor: string
+): Promise<void> {
+    return new Promise(resolve => {
+        const diceBar = document.getElementById('dice-bar');
+        const attackerDiceContainer = document.getElementById('attacker-dice');
+        const defenderDiceContainer = document.getElementById('defender-dice');
+        const diceArrow = document.getElementById('dice-arrow');
+
+        if (!diceBar || !attackerDiceContainer || !defenderDiceContainer) {
+            resolve();
+            return;
+        }
+
+        // Clear previous state
+        attackerDiceContainer.innerHTML = '';
+        defenderDiceContainer.innerHTML = '';
+        attackerDiceContainer.classList.remove('winner');
+        defenderDiceContainer.classList.remove('winner');
+        diceBar.classList.remove('fading');
+
+        // Set team colors as backgrounds
+        attackerDiceContainer.style.backgroundColor = attackerColor;
+        defenderDiceContainer.style.backgroundColor = defenderColor;
+
+        // Set arrow color to attacker's color
+        if (diceArrow) {
+            diceArrow.style.color = attackerColor;
+        }
+
+        // Sort rolls descending for display
+        const sortedAttacker = [...result.attackerRolls].sort((a, b) => b - a);
+        const sortedDefender = [...result.defenderRolls].sort((a, b) => b - a);
+        const comparisons = Math.min(sortedAttacker.length, sortedDefender.length);
+
+        // Create dice elements and store references
+        const attackerDice: HTMLDivElement[] = [];
+        const defenderDice: HTMLDivElement[] = [];
+
+        for (const value of sortedAttacker) {
+            const die = createDieElement(value);
+            attackerDiceContainer.appendChild(die);
+            attackerDice.push(die);
+        }
+
+        for (const value of sortedDefender) {
+            const die = createDieElement(value);
+            defenderDiceContainer.appendChild(die);
+            defenderDice.push(die);
+        }
+
+        // Step 1: Show dice bar (no highlights yet)
+        diceBar.classList.add('visible');
+        diceBar.setAttribute('aria-hidden', 'false');
+
+        // Step 2: After brief pause, highlight winners/losers
+        setTimeout(() => {
+            // Mark overall winner with glow
+            if (result.attackerWins) {
+                attackerDiceContainer.classList.add('winner');
+            } else {
+                defenderDiceContainer.classList.add('winner');
+            }
+
+            // Mark individual dice based on pair comparisons
+            for (let i = 0; i < comparisons; i++) {
+                if (sortedAttacker[i] > sortedDefender[i]) {
+                    // Attacker wins this comparison
+                    attackerDice[i].classList.add('win');
+                    defenderDice[i].classList.add('lose');
+                } else {
+                    // Defender wins (ties go to defender)
+                    attackerDice[i].classList.add('lose');
+                    defenderDice[i].classList.add('win');
+                }
+            }
+
+            // Step 3: After showing results, fade out
+            setTimeout(() => {
+                diceBar.classList.add('fading');
+
+                // Step 4: After fade completes, hide and resolve
+                setTimeout(() => {
+                    diceBar.classList.remove('visible', 'fading');
+                    diceBar.setAttribute('aria-hidden', 'true');
+                    resolve();
+                }, 250); // Match CSS transition duration
+            }, 600);
+        }, 300);
+    });
+}

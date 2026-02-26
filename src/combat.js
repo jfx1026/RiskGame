@@ -1,6 +1,6 @@
 /**
  * Combat system for Risk Game
- * Implements Strategery-style dice-based combat
+ * Implements traditional Risk-style dice combat with pair comparisons
  */
 /**
  * Roll a specified number of six-sided dice
@@ -19,26 +19,42 @@ export function getHighestRoll(rolls) {
     return Math.max(...rolls);
 }
 /**
- * Resolve combat between attacker and defender
- * Each army = 1 die, highest single die wins, ties go to defender
+ * Resolve combat between attacker and defender using traditional Risk-style pair comparisons
+ * Each army = 1 die, dice are sorted and compared in pairs (highest vs highest, etc.)
+ * Ties go to defender
  */
 export function resolveCombat(attackerArmies, defenderArmies) {
     const attackerRolls = rollDice(attackerArmies);
     const defenderRolls = rollDice(defenderArmies);
-    const attackerHighest = getHighestRoll(attackerRolls);
-    const defenderHighest = getHighestRoll(defenderRolls);
-    // Attacker must roll strictly higher to win (ties go to defender)
-    const attackerWins = attackerHighest > defenderHighest;
+    // Sort both in descending order for pair comparison
+    const sortedAttacker = [...attackerRolls].sort((a, b) => b - a);
+    const sortedDefender = [...defenderRolls].sort((a, b) => b - a);
+    // Compare as many pairs as the minimum of both counts
+    const comparisons = Math.min(attackerArmies, defenderArmies);
+    let attackerLost = 0;
+    let defenderLost = 0;
+    for (let i = 0; i < comparisons; i++) {
+        if (sortedAttacker[i] > sortedDefender[i]) {
+            // Attacker wins this comparison - defender loses 1 army
+            defenderLost++;
+        }
+        else {
+            // Defender wins (ties go to defender) - attacker loses 1 army
+            attackerLost++;
+        }
+    }
+    // Attacker conquers the territory if defender loses all armies
+    const attackerWins = defenderLost >= defenderArmies;
     return {
         attackerWins,
         attackerRolls,
         defenderRolls,
-        attackerHighest,
-        defenderHighest,
+        attackerHighest: sortedAttacker[0],
+        defenderHighest: sortedDefender[0],
         attackerArmies,
         defenderArmies,
-        attackerLost: 0, // Will be set by executeAttack
-        defenderLost: 0, // Will be set by executeAttack
+        attackerLost,
+        defenderLost,
     };
 }
 /**
@@ -46,23 +62,18 @@ export function resolveCombat(attackerArmies, defenderArmies) {
  * Returns the combat result and modifies territories accordingly
  */
 export function executeAttack(source, target, teams) {
-    const result = resolveCombat(source.armies, target.armies);
-    let attackerLost = 0;
-    let defenderLost = 0;
+    // Attacker must leave 1 army behind, so only (armies - 1) can attack
+    const attackingArmies = source.armies - 1;
+    const result = resolveCombat(attackingArmies, target.armies);
+    // Apply losses from pair comparisons
+    source.armies -= result.attackerLost;
+    target.armies -= result.defenderLost;
     if (result.attackerWins) {
-        // Attacker wins - defender loses all armies
-        // Attacker loses some armies too (attrition from conquest)
-        // Attacker casualties = half of defender's armies (rounded down), min 0
-        defenderLost = target.armies;
-        attackerLost = Math.floor(target.armies / 2);
-        // Ensure attacker keeps at least 1 army after casualties
-        const remainingAttacker = source.armies - attackerLost;
-        if (remainingAttacker < 2) {
-            // Need at least 2 to leave 1 behind and move 1
-            attackerLost = Math.max(0, source.armies - 2);
-        }
-        // Calculate moving armies: source armies - casualties - 1 (left behind)
-        const movingArmies = source.armies - attackerLost - 1;
+        // Attacker conquers - defender lost all armies
+        // Surviving attackers move to conquered territory, capped by territory capacity
+        const survivingAttackers = result.attackerArmies - result.attackerLost;
+        const targetCapacity = target.hexes.size;
+        const movingArmies = Math.min(survivingAttackers, targetCapacity);
         // Update territory ownership
         const previousOwner = target.owner;
         const newOwner = source.owner;
@@ -81,27 +92,9 @@ export function executeAttack(source, target, teams) {
         target.owner = newOwner;
         target.color = source.color;
         target.armies = Math.max(1, movingArmies); // At least 1 army in conquered territory
-        source.armies = 1;
+        source.armies -= movingArmies; // Remaining armies stay behind
     }
-    else {
-        // Defender wins - both sides take casualties (attrition)
-        // Attacker loses armies equal to defender's army count (max)
-        // Defender loses armies equal to attacker's attacking force - 1
-        // This allows "gang up" strategy to chip away at strong positions
-        // Attacker loses: up to defender's army count, but keeps at least 1
-        attackerLost = Math.min(target.armies, source.armies - 1);
-        source.armies -= attackerLost;
-        // Defender loses: up to (attacker's armies - 1), but keeps at least 1
-        // The -1 represents the army that stays behind
-        const attackingForce = result.attackerArmies - 1;
-        defenderLost = Math.min(attackingForce, target.armies - 1);
-        target.armies -= defenderLost;
-    }
-    return {
-        ...result,
-        attackerLost,
-        defenderLost,
-    };
+    return result;
 }
 /**
  * Check if a territory can attack another territory
@@ -151,16 +144,14 @@ export function getValidAttackTargets(source, territories) {
  * Format combat result for display
  */
 export function formatCombatResult(result, attackerName, defenderName) {
-    const attackerRollsStr = result.attackerRolls.sort((a, b) => b - a).join(', ');
-    const defenderRollsStr = result.defenderRolls.sort((a, b) => b - a).join(', ');
+    const attackerRollsStr = [...result.attackerRolls].sort((a, b) => b - a).join(', ');
+    const defenderRollsStr = [...result.defenderRolls].sort((a, b) => b - a).join(', ');
     if (result.attackerWins) {
-        // Show attacker casualties if any
         const casualtyInfo = result.attackerLost > 0 ? ` (-${result.attackerLost} att)` : '';
         return `${attackerName} [${attackerRollsStr}] conquers ${defenderName} [${defenderRollsStr}]!${casualtyInfo}`;
     }
     else {
-        // Show both sides' losses in defense
-        return `${defenderName} [${defenderRollsStr}] defends vs ${attackerName} [${attackerRollsStr}]! (-${result.attackerLost} att, -${result.defenderLost} def)`;
+        return `${attackerName} [${attackerRollsStr}] vs ${defenderName} [${defenderRollsStr}] (-${result.attackerLost} att, -${result.defenderLost} def)`;
     }
 }
 //# sourceMappingURL=combat.js.map
