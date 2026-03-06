@@ -1,18 +1,27 @@
 {
-  "name": "risk-game-map-generator",
+  "name": "risk-game",
   "version": "1.0.0",
-  "description": "A hexagonal map generator for Risk-like strategy games",
+  "description": "A hexagonal strategy game inspired by Risk",
   "type": "module",
-  "main": "src/main.js",
   "scripts": {
-    "build": "tsc",
-    "watch": "tsc --watch",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "test:run": "vitest run"
   },
-  "keywords": ["risk", "game", "hexagonal", "map", "generator"],
+  "keywords": [
+    "risk",
+    "game",
+    "hexagonal",
+    "strategy"
+  ],
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1",
+    "vitest": "^4.0.18"
   }
 }

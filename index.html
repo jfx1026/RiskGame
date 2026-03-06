@@ -833,17 +833,6 @@
         </p>
     </noscript>
 
-    <p id="error-message" style="color: #f88; text-align: center; margin-top: 20px; display: none;"></p>
-
-    <script>
-        window.addEventListener('error', function(e) {
-            var msg = document.getElementById('error-message');
-            if (msg) {
-                msg.style.display = 'block';
-                msg.textContent = 'Error: ' + e.message + '. Make sure to run via a local server (not file://).';
-            }
-        });
-    </script>
-    <script type="module" src="./src/main.js" onerror="document.getElementById('error-message').style.display='block'; document.getElementById('error-message').textContent='Failed to load modules. Run via local server: python3 -m http.server 8080'"></script>
+    <script type="module" src="./src/main.ts"></script>
 </body>
 </html>

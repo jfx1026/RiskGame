@@ -73,8 +73,6 @@ export function createTeams(teamCount: number): Team[] {
         });
     }
 
-    console.log(`Human player: ${teams[humanTeamIndex].name}`);
-
     return teams;
 }
 

@@ -166,27 +166,14 @@ export function getValidAttackTargets(
     territories: Territory[]
 ): Territory[] {
     if (source.armies <= 1) {
-        console.log(`[getValidAttackTargets] ${source.name} has only ${source.armies} army, can't attack`);
         return [];
     }
 
-    const neighborIds = Array.from(source.neighbors);
-    console.log(`[getValidAttackTargets] ${source.name} (owner: ${source.owner}, armies: ${source.armies})`);
-    console.log(`[getValidAttackTargets] Neighbors: ${neighborIds.join(', ')}`);
-
-    const validTargets = territories.filter(t => {
+    return territories.filter(t => {
         const isNeighbor = source.neighbors.has(t.id);
         const isDifferentOwner = t.owner !== source.owner;
-
-        if (isNeighbor) {
-            console.log(`[getValidAttackTargets] - ${t.name} (id: ${t.id}, owner: ${t.owner}): neighbor=${isNeighbor}, diffOwner=${isDifferentOwner}`);
-        }
-
         return isNeighbor && isDifferentOwner;
     });
-
-    console.log(`[getValidAttackTargets] Valid targets: ${validTargets.map(t => t.name).join(', ') || 'none'}`);
-    return validTargets;
 }
 
 /**

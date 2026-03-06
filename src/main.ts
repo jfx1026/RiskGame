@@ -130,7 +130,6 @@ function init(): void {
     const resumeBtn = document.getElementById('resume-btn');
 
     if (!svgEl || !tooltipEl || !startScreenEl || !gameScreenEl || !resumeBtn) {
-        console.error('Required DOM elements not found');
         return;
     }
 
@@ -176,8 +175,6 @@ function init(): void {
 
     // Show start screen initially
     showStartScreen();
-
-    console.log('Risk Game initialized');
 }
 
 /**
@@ -552,8 +549,6 @@ function generateAndRenderNewMap(): void {
     if (humanTeam) {
         showGameStartMessage(humanTeam);
     }
-
-    console.log(`Started new game with ${currentMap.territories.length} territories for ${teams.length} teams`);
 }
 
 /**
@@ -661,7 +656,6 @@ async function handleHexClick(clickedTerritory: Territory, hex: Hex, event: Mous
     // Always get fresh territory data from gameState to ensure we have current ownership
     const territory = gameState.territories.find(t => t.id === clickedTerritory.id);
     if (!territory) {
-        console.error('Territory not found:', clickedTerritory.id);
         return;
     }
 
@@ -689,8 +683,6 @@ async function handleHexClick(clickedTerritory: Territory, hex: Hex, event: Mous
         if (targets.length > 0) {
             highlightValidTargets(svgElement, targets.map(t => t.id));
         }
-
-        console.log(`Selected: ${territory.name} (${territory.armies} armies, owner: ${territory.owner})`);
     }
     // If clicking on enemy territory while we have a selection
     else if (gameState.selectedTerritory !== null) {
@@ -716,11 +708,6 @@ async function handleHexClick(clickedTerritory: Territory, hex: Hex, event: Mous
 
                 // Log combat result
                 logCombatResult(formatCombatResult(result, sourceName, targetName));
-
-                console.log(`Combat: ${sourceName} vs ${targetName}`);
-                console.log(`Attacker rolls: ${result.attackerRolls.join(', ')} (highest: ${result.attackerHighest})`);
-                console.log(`Defender rolls: ${result.defenderRolls.join(', ')} (highest: ${result.defenderHighest})`);
-                console.log(`Result: ${result.attackerWins ? 'Attacker wins!' : 'Defender wins!'}`);
 
                 // Capture game generation to detect if game changes during animation
                 const currentGeneration = gameGeneration;
@@ -785,9 +772,7 @@ function handleEndTurn(): void {
 
     // Only allow human player to end their turn
     const currentTeam = getCurrentTeam(gameState);
-    console.log(`[handleEndTurn] Current team: ${currentTeam.name}, isHuman: ${currentTeam.isHuman}`);
     if (!currentTeam.isHuman) {
-        console.warn('[handleEndTurn] Called but current team is not human - ignoring');
         return;
     }
 
@@ -795,9 +780,7 @@ function handleEndTurn(): void {
     const resupplyAmount = calculateResupply(gameState);
 
     // End the turn
-    console.log(`[handleEndTurn] Ending turn for ${previousTeam.name}`);
     gameState = endTurn(gameState);
-    console.log(`[handleEndTurn] After endTurn, new currentTeamIndex: ${gameState.currentTeamIndex}, team: ${getCurrentTeam(gameState).name}`);
 
     // Log resupply
     logCombatResult(`${previousTeam.name} received ${resupplyAmount} reinforcements`);
@@ -822,8 +805,6 @@ function handleEndTurn(): void {
         showVictory(gameState.winner);
         return;
     }
-
-    console.log(`Turn ${gameState.turnNumber}: ${getCurrentTeam(gameState).name}'s turn`);
 
     // If next player is computer, run computer turns
     const nextTeam = getCurrentTeam(gameState);
@@ -958,7 +939,6 @@ async function executeComputerTurn(): Promise<void> {
     if (!gameState) return;
 
     const currentTeam = getCurrentTeam(gameState);
-    console.log(`Computer turn: ${currentTeam.name}`);
 
     // Add a small delay before starting attacks
     await delay(500);
@@ -997,9 +977,6 @@ async function executeComputerTurn(): Promise<void> {
         if (gameState.lastCombatResult) {
             const result = gameState.lastCombatResult;
             logCombatResult(formatCombatResult(result, source.name, target.name));
-
-            console.log(`Computer attack: ${source.name} vs ${target.name}`);
-            console.log(`Result: ${result.attackerWins ? 'Victory!' : 'Defended'}`);
 
             // Show dice animation (non-blocking) and combat animation in parallel
             showDiceAnimation(result, attackerColor, defenderColor);
@@ -1046,8 +1023,6 @@ async function executeComputerTurn(): Promise<void> {
 
     // Update stats
     updateStats();
-
-    console.log(`Computer ${previousTeam.name} ended turn`);
 
     // Small delay before next player
     await delay(300);
