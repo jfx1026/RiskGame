@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
     root: '.',
+    base: './',  // Use relative paths for subdirectory deployment
     publicDir: 'public',
     build: {
         outDir: 'dist',

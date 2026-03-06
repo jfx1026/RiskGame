@@ -1185,7 +1185,7 @@ async function loadDiceSvg(): Promise<string> {
     if (diceSvgContent) return diceSvgContent;
 
     try {
-        const response = await fetch('/assets/Dice.svg');
+        const response = await fetch('./assets/Dice.svg');
         diceSvgContent = await response.text();
     } catch {
         diceSvgContent = '';
@@ -1208,7 +1208,7 @@ function createDieElement(value: number): HTMLDivElement {
 
     // Create a use element that references the dice sprite
     const image = document.createElementNS('http://www.w3.org/2000/svg', 'image');
-    image.setAttribute('href', '/assets/Dice.svg');
+    image.setAttribute('href', './assets/Dice.svg');
     image.setAttribute('width', '400');
     image.setAttribute('height', '250');
 
