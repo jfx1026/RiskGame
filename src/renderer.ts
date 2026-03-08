@@ -29,8 +29,8 @@ const DEFAULT_OPTIONS: RenderOptions = {
     hexScale: 1.0,  // No gap between hexes in same territory
 };
 
-export type HexClickHandler = (territory: Territory, hex: Hex, event: MouseEvent) => void;
-export type TerritoryHoverHandler = (territory: Territory | null, event: MouseEvent) => void;
+export type HexClickHandler = (territory: Territory, hex: Hex, event: MouseEvent | TouchEvent) => void;
+export type TerritoryHoverHandler = (territory: Territory | null, event: MouseEvent | TouchEvent) => void;
 
 /**
  * Render the map to an SVG element
@@ -56,8 +56,12 @@ export function renderMap(
     const offsetY = -bounds.minY + padding;
 
     svgElement.setAttribute('viewBox', `0 0 ${viewBoxWidth} ${viewBoxHeight}`);
-    svgElement.setAttribute('width', String(Math.min(viewBoxWidth, 900)));
-    svgElement.setAttribute('height', String(Math.min(viewBoxHeight, 600)));
+    // Use 100% width/height to scale fluidly on all screen sizes
+    // The viewBox maintains aspect ratio while the container controls actual size
+    svgElement.setAttribute('width', '100%');
+    svgElement.setAttribute('height', '100%');
+    svgElement.style.maxWidth = '100%';
+    svgElement.style.maxHeight = '100%';
 
     // Create defs for any gradients/filters
     const defs = createSvgElement('defs');
@@ -848,6 +852,7 @@ function renderHex(hex: Hex, territory: Territory, hexSize: number): SVGGElement
 
 /**
  * Add click handlers to hexes with selection support
+ * Supports both mouse clicks and touch events for mobile compatibility
  */
 export function addClickHandlers(
     svgElement: SVGSVGElement,
@@ -867,11 +872,22 @@ export function addClickHandlers(
             if (territory) {
                 // Select this territory
                 selectTerritory(svgElement, territoryId);
-                handler(territory, { q, r }, event as MouseEvent);
+                handler(territory, { q, r }, event as MouseEvent | TouchEvent);
             }
         };
 
+        // Mouse click handler
         hexElement.addEventListener('click', handleEvent);
+
+        // Touch handler for mobile - use touchend to match click behavior
+        hexElement.addEventListener('touchend', (event: Event) => {
+            const touchEvent = event as TouchEvent;
+            // Prevent the subsequent click event from firing (prevents double handling)
+            touchEvent.preventDefault();
+            handleEvent(event);
+        }, { passive: false });
+
+        // Keyboard handler for accessibility
         hexElement.addEventListener('keydown', (event: Event) => {
             const keyEvent = event as KeyboardEvent;
             if (keyEvent.key === 'Enter' || keyEvent.key === ' ') {
@@ -936,6 +952,7 @@ export function deselectAll(svgElement: SVGSVGElement): void {
 
 /**
  * Add hover handlers to territories (for tooltip display)
+ * Supports both mouse hover and touch events for mobile compatibility
  */
 export function addHoverHandlers(
     svgElement: SVGSVGElement,
@@ -946,6 +963,7 @@ export function addHoverHandlers(
     let currentTerritoryId: number | null = null;
 
     hexes.forEach(hexElement => {
+        // Mouse hover for desktop
         hexElement.addEventListener('mouseenter', (event) => {
             const polygon = event.target as SVGPolygonElement;
             const territoryId = parseInt(polygon.getAttribute('data-territory-id') || '0', 10);
@@ -959,12 +977,45 @@ export function addHoverHandlers(
                 }
             }
         });
+
+        // Touch start for mobile - show tooltip on touch
+        hexElement.addEventListener('touchstart', (event) => {
+            const touchEvent = event as TouchEvent;
+            const polygon = touchEvent.target as SVGPolygonElement;
+            const territoryId = parseInt(polygon.getAttribute('data-territory-id') || '0', 10);
+
+            if (territoryId !== currentTerritoryId) {
+                currentTerritoryId = territoryId;
+
+                const territory = territories.find(t => t.id === territoryId);
+                if (territory && touchEvent.touches.length > 0) {
+                    // Create a synthetic event with touch coordinates
+                    const touch = touchEvent.touches[0];
+                    const syntheticEvent = {
+                        clientX: touch.clientX,
+                        clientY: touch.clientY,
+                        target: touchEvent.target
+                    } as MouseEvent;
+                    handler(territory, syntheticEvent);
+                }
+            }
+        }, { passive: true });
     });
 
+    // Mouse leave for desktop
     svgElement.addEventListener('mouseleave', (event) => {
         currentTerritoryId = null;
         handler(null, event as MouseEvent);
     });
+
+    // Touch end anywhere on SVG to hide tooltip (after interaction)
+    svgElement.addEventListener('touchend', () => {
+        // Small delay to allow the click handler to process first
+        setTimeout(() => {
+            currentTerritoryId = null;
+            handler(null, { clientX: 0, clientY: 0 } as MouseEvent);
+        }, 100);
+    }, { passive: true });
 }
 
 /**

@@ -147,31 +147,56 @@ function init(): void {
     gameScreen = gameScreenEl;
     resumeButton = resumeBtn as HTMLButtonElement;
 
-    // Set up End Turn button
+    // Set up End Turn button (click and touch)
     endTurnButton.addEventListener('click', handleEndTurn);
+    endTurnButton.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        handleEndTurn();
+    }, { passive: false });
 
-    // Set up Fast Forward button
+    // Set up Fast Forward button (click and touch)
     fastForwardButton.addEventListener('click', toggleFastForward);
+    fastForwardButton.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        toggleFastForward();
+    }, { passive: false });
 
-    // Set up Surrender button
+    // Set up Surrender button (click and touch)
     surrenderButton.addEventListener('click', handleSurrender);
+    surrenderButton.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        handleSurrender();
+    }, { passive: false });
 
-    // Set up Back button - returns to start screen
+    // Set up Back button - returns to start screen (click and touch)
     backButton.addEventListener('click', handleBack);
+    backButton.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        handleBack();
+    }, { passive: false });
 
-    // Set up size buttons on start screen
+    // Set up size buttons on start screen (click and touch)
     const sizeButtons = document.querySelectorAll('.size-btn');
     sizeButtons.forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const size = (e.target as HTMLElement).dataset.size as 'small' | 'medium' | 'large';
+        const handleSizeClick = (e: Event) => {
+            const size = (e.currentTarget as HTMLElement).dataset.size as 'small' | 'medium' | 'large';
             if (size) {
                 handleSizeButtonClick(size);
             }
-        });
+        };
+        btn.addEventListener('click', handleSizeClick);
+        btn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            handleSizeClick(e);
+        }, { passive: false });
     });
 
-    // Set up resume button
+    // Set up resume button (click and touch)
     resumeButton.addEventListener('click', resumeGame);
+    resumeButton.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        resumeGame();
+    }, { passive: false });
 
     // Show start screen initially
     showStartScreen();
@@ -533,9 +558,10 @@ function generateAndRenderNewMap(): void {
     addClickHandlers(svgElement, currentMap.territories, handleHexClick);
     addHoverHandlers(svgElement, currentMap.territories, handleTerritoryHover);
 
-    // Add click handler for empty space deselection - only once
+    // Add click/touch handler for empty space deselection - only once
     if (!svgListenersInitialized) {
         svgElement.addEventListener('click', handleSvgBackgroundClick);
+        svgElement.addEventListener('touchend', handleSvgBackgroundTouch, { passive: false });
         svgListenersInitialized = true;
     }
 
@@ -617,8 +643,9 @@ function showGameStartMessage(humanTeam: Team): void {
 
 /**
  * Handle clicks on SVG background/empty tiles to deselect
+ * Supports both mouse clicks and touch events
  */
-function handleSvgBackgroundClick(event: MouseEvent): void {
+function handleSvgBackgroundClick(event: MouseEvent | TouchEvent): void {
     const target = event.target as Element;
     if (target === svgElement || target.classList.contains('hex-empty')) {
         if (gameState) {
@@ -630,9 +657,22 @@ function handleSvgBackgroundClick(event: MouseEvent): void {
 }
 
 /**
- * Handle hex click - implements selection and attack logic
+ * Handle touch events on SVG background for deselection
  */
-async function handleHexClick(clickedTerritory: Territory, hex: Hex, event: MouseEvent): Promise<void> {
+function handleSvgBackgroundTouch(event: TouchEvent): void {
+    const target = event.target as Element;
+    if (target === svgElement || target.classList.contains('hex-empty')) {
+        // Prevent the click event from also firing
+        event.preventDefault();
+        handleSvgBackgroundClick(event);
+    }
+}
+
+/**
+ * Handle hex click - implements selection and attack logic
+ * Supports both mouse clicks and touch events
+ */
+async function handleHexClick(clickedTerritory: Territory, hex: Hex, event: MouseEvent | TouchEvent): Promise<void> {
     if (!gameState || gameState.phase === 'gameOver') {
         return;
     }
@@ -1049,8 +1089,9 @@ function delay(ms: number): Promise<void> {
 
 /**
  * Handle territory hover
+ * Supports both mouse hover and touch events
  */
-function handleTerritoryHover(territory: Territory | null, event: MouseEvent): void {
+function handleTerritoryHover(territory: Territory | null, event: MouseEvent | TouchEvent): void {
     if (territory && gameState) {
         // Show tooltip with team info
         const neighborCount = territory.neighbors.size;
@@ -1085,12 +1126,26 @@ function handleTerritoryHover(territory: Territory | null, event: MouseEvent): v
 }
 
 /**
- * Update tooltip position based on mouse position
+ * Update tooltip position based on mouse/touch position
  */
-function updateTooltipPosition(event: MouseEvent): void {
+function updateTooltipPosition(event: MouseEvent | TouchEvent): void {
     const offset = 15;
-    let x = event.clientX + offset;
-    let y = event.clientY + offset;
+    let clientX: number;
+    let clientY: number;
+
+    // Handle touch events
+    if ('touches' in event && event.touches.length > 0) {
+        clientX = event.touches[0].clientX;
+        clientY = event.touches[0].clientY;
+    } else if ('clientX' in event) {
+        clientX = event.clientX;
+        clientY = event.clientY;
+    } else {
+        return; // Can't determine position
+    }
+
+    let x = clientX + offset;
+    let y = clientY + offset;
 
     // Keep tooltip in viewport
     const tooltipRect = tooltipElement.getBoundingClientRect();
@@ -1098,10 +1153,10 @@ function updateTooltipPosition(event: MouseEvent): void {
     const viewportHeight = window.innerHeight;
 
     if (x + tooltipRect.width > viewportWidth - 10) {
-        x = event.clientX - tooltipRect.width - offset;
+        x = clientX - tooltipRect.width - offset;
     }
     if (y + tooltipRect.height > viewportHeight - 10) {
-        y = event.clientY - tooltipRect.height - offset;
+        y = clientY - tooltipRect.height - offset;
     }
 
     tooltipElement.style.left = `${x}px`;
@@ -1344,6 +1399,13 @@ document.addEventListener('mousemove', (event) => {
         updateTooltipPosition(event);
     }
 });
+
+// Track touch movement for tooltip positioning on mobile
+document.addEventListener('touchmove', (event) => {
+    if (tooltipElement && tooltipElement.classList.contains('visible')) {
+        updateTooltipPosition(event);
+    }
+}, { passive: true });
 
 // Initialize when DOM is ready
 if (document.readyState === 'loading') {
