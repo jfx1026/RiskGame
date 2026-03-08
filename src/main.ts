@@ -198,6 +198,9 @@ function init(): void {
         resumeGame();
     }, { passive: false });
 
+    // Initialize map zoom/pan for touch devices
+    initMapZoom();
+
     // Show start screen initially
     showStartScreen();
 }
@@ -522,6 +525,9 @@ let svgListenersInitialized = false;
 function generateAndRenderNewMap(): void {
     // Increment game generation to invalidate any pending async operations
     gameGeneration++;
+
+    // Reset map zoom/pan
+    resetMapTransform();
 
     // Reset game state flags
     isComputerPlaying = false;
@@ -1406,6 +1412,191 @@ document.addEventListener('touchmove', (event) => {
         updateTooltipPosition(event);
     }
 }, { passive: true });
+
+// ============================================================
+// MAP PINCH-TO-ZOOM AND PAN
+// ============================================================
+
+let mapScale = 1;
+let mapTranslateX = 0;
+let mapTranslateY = 0;
+let initialPinchDistance = 0;
+let initialScale = 1;
+let initialTranslateX = 0;
+let initialTranslateY = 0;
+let pinchMidpoint = { x: 0, y: 0 };
+let isPinching = false;
+let lastTouchX = 0;
+let lastTouchY = 0;
+let isPanning = false;
+
+const MIN_SCALE = 1;
+const MAX_SCALE = 3;
+
+/**
+ * Calculate distance between two touch points
+ */
+function getTouchDistance(touches: TouchList): number {
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+}
+
+/**
+ * Get the midpoint between two touches
+ */
+function getTouchMidpoint(touches: TouchList): { x: number; y: number } {
+    return {
+        x: (touches[0].clientX + touches[1].clientX) / 2,
+        y: (touches[0].clientY + touches[1].clientY) / 2
+    };
+}
+
+/**
+ * Apply transform to the SVG element
+ */
+function applyMapTransform(): void {
+    const svg = document.getElementById('map-svg');
+    if (svg) {
+        svg.style.transform = `translate(${mapTranslateX}px, ${mapTranslateY}px) scale(${mapScale})`;
+        svg.style.transformOrigin = 'center center';
+    }
+}
+
+/**
+ * Reset map zoom and pan
+ */
+function resetMapTransform(): void {
+    mapScale = 1;
+    mapTranslateX = 0;
+    mapTranslateY = 0;
+    applyMapTransform();
+}
+
+/**
+ * Constrain translation to keep map visible
+ */
+function constrainTranslation(): void {
+    const mapContainer = document.getElementById('map-container');
+    if (!mapContainer) return;
+
+    const rect = mapContainer.getBoundingClientRect();
+    // Allow panning proportional to how much we've zoomed
+    const maxPanX = (rect.width * (mapScale - 1)) / 2;
+    const maxPanY = (rect.height * (mapScale - 1)) / 2;
+
+    mapTranslateX = Math.min(maxPanX, Math.max(-maxPanX, mapTranslateX));
+    mapTranslateY = Math.min(maxPanY, Math.max(-maxPanY, mapTranslateY));
+}
+
+/**
+ * Initialize map zoom/pan handlers
+ */
+function initMapZoom(): void {
+    const mapContainer = document.getElementById('map-container');
+    if (!mapContainer) return;
+
+    mapContainer.addEventListener('touchstart', (e: TouchEvent) => {
+        if (e.touches.length === 2) {
+            // Pinch start
+            isPinching = true;
+            isPanning = false;
+            initialPinchDistance = getTouchDistance(e.touches);
+            initialScale = mapScale;
+            initialTranslateX = mapTranslateX;
+            initialTranslateY = mapTranslateY;
+            pinchMidpoint = getTouchMidpoint(e.touches);
+            e.preventDefault();
+        } else if (e.touches.length === 1 && mapScale > 1) {
+            // Pan start (only when zoomed in)
+            isPanning = true;
+            isPinching = false;
+            lastTouchX = e.touches[0].clientX;
+            lastTouchY = e.touches[0].clientY;
+            e.preventDefault();
+        }
+    }, { passive: false });
+
+    mapContainer.addEventListener('touchmove', (e: TouchEvent) => {
+        if (isPinching && e.touches.length === 2) {
+            // Pinch zoom with focal point
+            const currentDistance = getTouchDistance(e.touches);
+            const currentMidpoint = getTouchMidpoint(e.touches);
+            const scaleChange = currentDistance / initialPinchDistance;
+            const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, initialScale * scaleChange));
+
+            // Calculate how much the midpoint moved
+            const midpointDeltaX = currentMidpoint.x - pinchMidpoint.x;
+            const midpointDeltaY = currentMidpoint.y - pinchMidpoint.y;
+
+            // Get container center
+            const rect = mapContainer.getBoundingClientRect();
+            const containerCenterX = rect.left + rect.width / 2;
+            const containerCenterY = rect.top + rect.height / 2;
+
+            // Calculate focal point offset from center
+            const focalOffsetX = pinchMidpoint.x - containerCenterX;
+            const focalOffsetY = pinchMidpoint.y - containerCenterY;
+
+            // Adjust translation to zoom toward the focal point
+            const scaleDiff = newScale - initialScale;
+            mapTranslateX = initialTranslateX - (focalOffsetX * scaleDiff / initialScale) + midpointDeltaX;
+            mapTranslateY = initialTranslateY - (focalOffsetY * scaleDiff / initialScale) + midpointDeltaY;
+            mapScale = newScale;
+
+            constrainTranslation();
+            applyMapTransform();
+            e.preventDefault();
+        } else if (isPanning && e.touches.length === 1 && mapScale > 1) {
+            // Pan
+            const deltaX = e.touches[0].clientX - lastTouchX;
+            const deltaY = e.touches[0].clientY - lastTouchY;
+
+            mapTranslateX += deltaX;
+            mapTranslateY += deltaY;
+
+            lastTouchX = e.touches[0].clientX;
+            lastTouchY = e.touches[0].clientY;
+
+            constrainTranslation();
+            applyMapTransform();
+            e.preventDefault();
+        }
+    }, { passive: false });
+
+    mapContainer.addEventListener('touchend', (e: TouchEvent) => {
+        if (e.touches.length < 2) {
+            isPinching = false;
+        }
+        if (e.touches.length === 0) {
+            isPanning = false;
+            // Reset to default if zoomed out below minimum
+            if (mapScale <= MIN_SCALE) {
+                resetMapTransform();
+            }
+        }
+    }, { passive: true });
+
+    // Double-tap to reset zoom
+    let lastTapTime = 0;
+    mapContainer.addEventListener('touchend', (e: TouchEvent) => {
+        if (e.touches.length === 0 && e.changedTouches.length === 1) {
+            const currentTime = Date.now();
+            if (currentTime - lastTapTime < 300) {
+                // Double tap detected
+                if (mapScale > 1) {
+                    resetMapTransform();
+                } else {
+                    // Zoom in to 2x on double tap
+                    mapScale = 2;
+                    applyMapTransform();
+                }
+                e.preventDefault();
+            }
+            lastTapTime = currentTime;
+        }
+    }, { passive: false });
+}
 
 // Initialize when DOM is ready
 if (document.readyState === 'loading') {

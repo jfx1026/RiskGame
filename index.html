@@ -217,13 +217,14 @@
             align-items: center;
             justify-content: center;
             overflow: hidden;
+            touch-action: none; /* Allow custom pinch-zoom handling */
         }
 
         #map-svg {
             display: block;
             width: 100%;
             height: 100%;
-            touch-action: manipulation;
+            touch-action: none; /* Allow custom pinch-zoom handling */
         }
 
         /* ========== HEX STYLING ========== */
@@ -1038,22 +1039,61 @@
             }
 
             .sidebar {
-                width: 100px;
+                width: 140px;
                 height: 100%;
                 flex-direction: column;
                 order: 0;
                 border-top: none;
                 border-right: 1px solid var(--color-accent-divider);
+                padding: var(--space-sm);
+                padding-left: calc(var(--space-sm) + var(--safe-area-left));
+            }
+
+            .sidebar-top {
+                height: 50px;
+            }
+
+            .sidebar-bottom {
+                height: 50px;
             }
 
             .team-stats {
                 flex-direction: column;
                 overflow-y: auto;
                 overflow-x: hidden;
+                justify-content: flex-start;
+                gap: var(--space-xs);
             }
 
             .team-stat-row {
                 flex-direction: row;
+                min-width: auto;
+                padding: var(--space-xs);
+            }
+
+            .team-hex-icon {
+                width: 32px;
+                height: 36px;
+            }
+
+            .team-numbers {
+                font-size: var(--font-size-sm);
+                text-align: left;
+            }
+
+            .btn-back {
+                position: relative;
+                top: auto;
+                left: auto;
+            }
+
+            .btn-end-turn {
+                position: relative;
+                bottom: auto;
+                left: auto;
+                width: 100%;
+                padding: 0 var(--space-sm);
+                font-size: var(--font-size-xs);
             }
 
             .main-content {
@@ -1074,9 +1114,9 @@
 
         /* Touch device specific styles */
         @media (hover: none) and (pointer: coarse) {
-            /* Ensure adequate touch targets */
-            .hex {
-                /* Handled by SVG scaling */
+            /* Hide tooltip on touch devices */
+            #tooltip {
+                display: none !important;
             }
 
             /* Remove hover states that don't work on touch */
@@ -1090,6 +1130,15 @@
                 background: rgba(255, 255, 255, 0.1);
                 border-color: var(--color-text-primary);
                 color: var(--color-text-primary);
+            }
+
+            /* Preserve fast-forward active (toggled on) state */
+            .btn-fast-forward.active,
+            .btn-fast-forward.active:hover,
+            .btn-fast-forward.active:active {
+                background: var(--color-btn-warning);
+                border-color: var(--color-btn-warning);
+                color: var(--color-text-inverse);
             }
 
             /* Active state for buttons on touch */
