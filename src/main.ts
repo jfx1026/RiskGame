@@ -1490,9 +1490,6 @@ let mapTranslateX = 0;
 let mapTranslateY = 0;
 let initialPinchDistance = 0;
 let initialScale = 1;
-let initialTranslateX = 0;
-let initialTranslateY = 0;
-let pinchMidpoint = { x: 0, y: 0 };
 let isPinching = false;
 let lastTouchX = 0;
 let lastTouchY = 0;
@@ -1571,12 +1568,9 @@ function initMapZoom(): void {
             isPanning = false;
             initialPinchDistance = getTouchDistance(e.touches);
             initialScale = mapScale;
-            initialTranslateX = mapTranslateX;
-            initialTranslateY = mapTranslateY;
-            pinchMidpoint = getTouchMidpoint(e.touches);
             e.preventDefault();
-        } else if (e.touches.length === 1 && mapScale > 1) {
-            // Pan start (only when zoomed in)
+        } else if (e.touches.length === 1 && mapScale > 1.05) {
+            // Pan start (only when noticeably zoomed in)
             isPanning = true;
             isPinching = false;
             lastTouchX = e.touches[0].clientX;
@@ -1587,35 +1581,20 @@ function initMapZoom(): void {
 
     mapContainer.addEventListener('touchmove', (e: TouchEvent) => {
         if (isPinching && e.touches.length === 2) {
-            // Pinch zoom with focal point
+            // Simple pinch zoom from center
             const currentDistance = getTouchDistance(e.touches);
-            const currentMidpoint = getTouchMidpoint(e.touches);
             const scaleChange = currentDistance / initialPinchDistance;
-            const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, initialScale * scaleChange));
+            mapScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, initialScale * scaleChange));
 
-            // Calculate how much the midpoint moved
-            const midpointDeltaX = currentMidpoint.x - pinchMidpoint.x;
-            const midpointDeltaY = currentMidpoint.y - pinchMidpoint.y;
+            // Reset translation when zooming back to 1x
+            if (mapScale <= 1.05) {
+                mapTranslateX = 0;
+                mapTranslateY = 0;
+            }
 
-            // Get container center
-            const rect = mapContainer.getBoundingClientRect();
-            const containerCenterX = rect.left + rect.width / 2;
-            const containerCenterY = rect.top + rect.height / 2;
-
-            // Calculate focal point offset from center
-            const focalOffsetX = pinchMidpoint.x - containerCenterX;
-            const focalOffsetY = pinchMidpoint.y - containerCenterY;
-
-            // Adjust translation to zoom toward the focal point
-            const scaleDiff = newScale - initialScale;
-            mapTranslateX = initialTranslateX - (focalOffsetX * scaleDiff / initialScale) + midpointDeltaX;
-            mapTranslateY = initialTranslateY - (focalOffsetY * scaleDiff / initialScale) + midpointDeltaY;
-            mapScale = newScale;
-
-            constrainTranslation();
             applyMapTransform();
             e.preventDefault();
-        } else if (isPanning && e.touches.length === 1 && mapScale > 1) {
+        } else if (isPanning && e.touches.length === 1 && mapScale > 1.05) {
             // Pan
             const deltaX = e.touches[0].clientX - lastTouchX;
             const deltaY = e.touches[0].clientY - lastTouchY;
@@ -1638,8 +1617,8 @@ function initMapZoom(): void {
         }
         if (e.touches.length === 0) {
             isPanning = false;
-            // Reset to default if zoomed out below minimum
-            if (mapScale <= MIN_SCALE) {
+            // Snap to 1x if close to it
+            if (mapScale < 1.1) {
                 resetMapTransform();
             }
         }
