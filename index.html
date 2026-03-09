@@ -792,6 +792,138 @@
             display: none;
         }
 
+        /* ========== TITLE SCREEN ========== */
+        .title-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #1a1a1a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 3000;
+            opacity: 1;
+            transition: opacity 0.5s ease-out;
+        }
+
+        .title-screen.fade-out {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .title-screen.hidden {
+            display: none;
+        }
+
+        .title-logo {
+            width: 50%;
+            max-width: 500px;
+            min-width: 200px;
+            height: auto;
+        }
+
+        .title-credit {
+            margin-top: var(--space-xl);
+            font-size: var(--font-size-sm);
+            color: #ffffff;
+            letter-spacing: 0.05em;
+        }
+
+        /* ========== INSTRUCTIONS SCREEN ========== */
+        .instructions-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--color-bg-overlay);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+            padding: var(--space-xl);
+            box-sizing: border-box;
+        }
+
+        .instructions-screen.hidden {
+            display: none;
+        }
+
+        .instructions-content {
+            background: var(--color-bg-modal);
+            border-radius: var(--radius-xl);
+            padding: var(--space-2xl);
+            max-width: 500px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: var(--shadow-modal);
+        }
+
+        .instructions-content h2 {
+            font-size: var(--font-size-xl);
+            color: var(--color-text-primary);
+            margin-bottom: var(--space-lg);
+            text-align: center;
+        }
+
+        .instructions-content h3 {
+            font-size: var(--font-size-md);
+            color: var(--color-text-primary);
+            margin-top: var(--space-lg);
+            margin-bottom: var(--space-sm);
+        }
+
+        .instructions-content p,
+        .instructions-content li {
+            font-size: var(--font-size-sm);
+            color: var(--color-text-secondary);
+            line-height: 1.5;
+            margin-bottom: var(--space-sm);
+        }
+
+        .instructions-content ul {
+            padding-left: var(--space-xl);
+            margin-bottom: var(--space-md);
+        }
+
+        .instructions-link {
+            margin-top: var(--space-lg);
+            font-size: var(--font-size-xs);
+            color: var(--color-text-muted);
+            cursor: pointer;
+            text-decoration: underline;
+            background: none;
+            border: none;
+            font-family: var(--font-family);
+        }
+
+        .instructions-link:hover {
+            color: var(--color-text-secondary);
+        }
+
+        .instructions-back-btn {
+            display: block;
+            margin: var(--space-xl) auto 0;
+            padding: var(--space-sm) var(--space-2xl);
+            font-size: var(--font-size-sm);
+            font-family: var(--font-family);
+            background: var(--color-btn-primary);
+            color: var(--color-text-on-button);
+            border: none;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            min-height: var(--touch-target-min);
+            touch-action: manipulation;
+        }
+
+        .instructions-back-btn:hover {
+            background: var(--color-btn-primary-hover);
+        }
+
         /* ========== MOBILE RESPONSIVE STYLES ========== */
 
         /* Tablet breakpoint (768px and below) */
@@ -1153,16 +1285,60 @@
     </style>
 </head>
 <body>
+    <!-- Title Screen -->
+    <div id="title-screen" class="title-screen">
+        <img src="./assets/title-logo.png" alt="Strategery 2" class="title-logo">
+        <p class="title-credit">A John Freeborn Game</p>
+    </div>
+
     <!-- Start Screen -->
     <div id="start-screen" class="start-screen">
         <div class="start-content">
-            <h1 class="game-title">Risk Game</h1>
+            <h1 class="game-title" style="font-size: var(--font-size-xl);">Choose map size</h1>
             <div class="size-buttons">
                 <button class="size-btn" data-size="small">Small</button>
                 <button class="size-btn" data-size="medium">Medium</button>
                 <button class="size-btn" data-size="large">Large</button>
             </div>
             <button class="resume-btn hidden" id="resume-btn">Resume Game</button>
+            <button class="instructions-link" id="instructions-link">How to Play</button>
+        </div>
+    </div>
+
+    <!-- Instructions Screen -->
+    <div id="instructions-screen" class="instructions-screen hidden">
+        <div class="instructions-content">
+            <h2>How to Play</h2>
+
+            <h3>Goal</h3>
+            <p>Conquer all territories on the map to win.</p>
+
+            <h3>Your Turn</h3>
+            <ul>
+                <li><strong>Tap your territory</strong> to select it (shown with a black border)</li>
+                <li><strong>Tap an enemy neighbor</strong> (pulsing white border) to attack</li>
+                <li>Attack as many times as you want, then tap <strong>End Turn</strong></li>
+            </ul>
+
+            <h3>Combat</h3>
+            <ul>
+                <li>Both sides roll dice based on army count</li>
+                <li>Higher rolls win - attacker needs to beat defender</li>
+                <li>Loser loses one army per die comparison</li>
+                <li>Conquer a territory when its armies reach zero</li>
+            </ul>
+
+            <h3>Reinforcements</h3>
+            <p>At the end of your turn, you receive new armies based on how many territories you control.</p>
+
+            <h3>Tips</h3>
+            <ul>
+                <li>Attack with more armies for better odds</li>
+                <li>Don't spread your armies too thin</li>
+                <li>Use <strong>Fast Forward</strong> to speed up AI turns</li>
+            </ul>
+
+            <button class="instructions-back-btn" id="instructions-back-btn">Got it!</button>
         </div>
     </div>
 

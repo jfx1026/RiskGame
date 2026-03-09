@@ -111,6 +111,24 @@ const GAME_CONFIGS: Record<string, GameConfig> = {
 };
 
 /**
+ * Show title screen for 2 seconds then fade to start screen
+ */
+function showTitleScreen(): void {
+    const titleScreen = document.getElementById('title-screen');
+    if (!titleScreen) return;
+
+    // After 2 seconds, fade out
+    setTimeout(() => {
+        titleScreen.classList.add('fade-out');
+
+        // After fade completes, hide completely
+        setTimeout(() => {
+            titleScreen.classList.add('hidden');
+        }, 500);
+    }, 2000);
+}
+
+/**
  * Initialize the application
  */
 function init(): void {
@@ -198,17 +216,55 @@ function init(): void {
         resumeGame();
     }, { passive: false });
 
+    // Set up instructions link (click and touch)
+    const instructionsLink = document.getElementById('instructions-link');
+    const instructionsScreen = document.getElementById('instructions-screen');
+    const instructionsBackBtn = document.getElementById('instructions-back-btn');
+
+    if (instructionsLink && instructionsScreen && instructionsBackBtn) {
+        const showInstructions = () => {
+            instructionsScreen.classList.remove('hidden');
+        };
+        const hideInstructions = () => {
+            instructionsScreen.classList.add('hidden');
+        };
+
+        instructionsLink.addEventListener('click', showInstructions);
+        instructionsLink.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            showInstructions();
+        }, { passive: false });
+
+        instructionsBackBtn.addEventListener('click', hideInstructions);
+        instructionsBackBtn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            hideInstructions();
+        }, { passive: false });
+    }
+
     // Initialize map zoom/pan for touch devices
     initMapZoom();
 
-    // Show start screen initially
-    showStartScreen();
+    // Show title screen first, then start screen
+    showTitleScreen();
 }
 
 /**
  * Handle back button - returns to start screen
  */
 function handleBack(): void {
+    // Stop any running game logic
+    gameGeneration++;
+    isComputerPlaying = false;
+    gameStarted = false;
+
+    // Hide dice bar
+    const diceBar = document.getElementById('dice-bar');
+    if (diceBar) {
+        diceBar.classList.remove('visible', 'fading');
+        diceBar.setAttribute('aria-hidden', 'true');
+    }
+
     stopConfetti();
     showStartScreen();
 }
@@ -455,6 +511,18 @@ function showSurrenderConfirmation(): void {
 function executeSurrender(): void {
     // Guard against calling when game is already over
     if (!gameState || gameState.phase === 'gameOver') return;
+
+    // Stop any running game logic
+    gameGeneration++;
+    isComputerPlaying = false;
+    gameStarted = false;
+
+    // Hide dice bar
+    const diceBar = document.getElementById('dice-bar');
+    if (diceBar) {
+        diceBar.classList.remove('visible', 'fading');
+        diceBar.setAttribute('aria-hidden', 'true');
+    }
 
     const humanTeam = gameState.teams.find(t => t.isHuman);
     if (!humanTeam) return;
