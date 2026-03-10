@@ -37,10 +37,10 @@
             background: var(--color-bg-page);
             display: flex;
             flex-direction: column;
-            padding: var(--space-sm);
-            padding-top: var(--safe-area-top);
-            padding-bottom: var(--safe-area-bottom);
-            padding-left: var(--safe-area-left);
+            padding: var(--space-xl);
+            padding-top: calc(var(--space-xl) + var(--safe-area-top));
+            padding-bottom: calc(var(--space-xl) + var(--safe-area-bottom));
+            padding-left: calc(var(--space-xl) + var(--safe-area-left));
             position: relative;
         }
 
@@ -162,19 +162,19 @@
 
         .btn-back {
             position: absolute;
-            top: var(--space-md);
-            left: var(--space-sm);
+            top: calc(var(--space-xl) + var(--safe-area-top));
+            left: calc(var(--space-xl) + var(--safe-area-left));
             border-radius: var(--radius-md);
         }
 
         .btn-surrender {
-            top: var(--space-md);
-            right: var(--space-md);
+            top: calc(var(--space-xl) + var(--safe-area-top));
+            right: calc(var(--space-xl) + var(--safe-area-right));
         }
 
         .btn-fast-forward {
-            bottom: var(--space-md);
-            right: var(--space-md);
+            bottom: calc(var(--space-xl) + var(--safe-area-bottom));
+            right: calc(var(--space-xl) + var(--safe-area-right));
         }
 
         .btn-fast-forward.active {
@@ -183,10 +183,21 @@
             color: var(--color-text-inverse);
         }
 
+        .btn-zoom {
+            bottom: calc(var(--space-xl) + var(--safe-area-bottom) + 56px);
+            right: calc(var(--space-xl) + var(--safe-area-right));
+        }
+
+        .btn-zoom.active {
+            background: var(--color-btn-primary);
+            border-color: var(--color-btn-primary);
+            color: var(--color-text-inverse);
+        }
+
         .btn-end-turn {
             position: absolute;
-            bottom: var(--space-md);
-            left: var(--space-sm);
+            bottom: calc(var(--space-xl) + var(--safe-area-bottom));
+            left: calc(var(--space-xl) + var(--safe-area-left));
             width: auto;
             height: 48px;
             padding: 0 var(--space-xl);
@@ -938,10 +949,10 @@
                 width: 100%;
                 height: auto;
                 flex-direction: row;
-                padding: var(--space-sm);
-                padding-bottom: calc(var(--space-sm) + var(--safe-area-bottom));
-                padding-left: calc(var(--space-sm) + var(--safe-area-left));
-                padding-right: calc(var(--space-sm) + var(--safe-area-right));
+                padding: var(--space-xl);
+                padding-bottom: calc(var(--space-xl) + var(--safe-area-bottom));
+                padding-left: calc(var(--space-xl) + var(--safe-area-left));
+                padding-right: calc(var(--space-xl) + var(--safe-area-right));
                 order: 2; /* Move below main content */
                 border-top: 1px solid var(--color-accent-divider);
             }
@@ -1004,14 +1015,18 @@
             }
 
             .btn-surrender {
-                top: var(--space-sm);
-                right: var(--space-sm);
+                top: calc(var(--space-xl) + var(--safe-area-top));
+                right: calc(var(--space-xl) + var(--safe-area-right));
             }
 
             .btn-fast-forward {
-                bottom: auto;
-                top: var(--space-sm);
-                right: calc(var(--space-sm) + 56px);
+                bottom: calc(var(--space-xl) + var(--safe-area-bottom));
+                right: calc(var(--space-xl) + var(--safe-area-right));
+            }
+
+            .btn-zoom {
+                bottom: calc(var(--space-xl) + var(--safe-area-bottom) + 56px);
+                right: calc(var(--space-xl) + var(--safe-area-right));
             }
 
             /* Main content takes remaining space */
@@ -1019,7 +1034,7 @@
                 flex: 1;
                 order: 1;
                 min-height: 0; /* Allow shrinking */
-                padding-top: calc(var(--space-sm) + var(--safe-area-top) + 56px); /* Space for top buttons */
+                padding-top: calc(var(--space-sm) + var(--safe-area-top)); /* Space for surrender button */
             }
 
             /* Dice bar adjustments for mobile */
@@ -1177,8 +1192,10 @@
                 order: 0;
                 border-top: none;
                 border-right: 1px solid var(--color-accent-divider);
-                padding: var(--space-sm);
-                padding-left: calc(var(--space-sm) + var(--safe-area-left));
+                padding: var(--space-xl);
+                padding-top: calc(var(--space-xl) + var(--safe-area-top));
+                padding-bottom: calc(var(--space-xl) + var(--safe-area-bottom));
+                padding-left: calc(var(--space-xl) + var(--safe-area-left));
             }
 
             .sidebar-top {
@@ -1238,9 +1255,19 @@
             }
 
             .btn-fast-forward {
-                bottom: var(--space-sm);
+                bottom: calc(var(--space-xl) + var(--safe-area-bottom));
                 top: auto;
-                right: var(--space-sm);
+                right: calc(var(--space-xl) + var(--safe-area-right));
+            }
+
+            .btn-zoom {
+                bottom: calc(var(--space-xl) + var(--safe-area-bottom) + 56px);
+                right: calc(var(--space-xl) + var(--safe-area-right));
+            }
+
+            .btn-surrender {
+                top: calc(var(--space-xl) + var(--safe-area-top));
+                right: calc(var(--space-xl) + var(--safe-area-right));
             }
         }
 
@@ -1375,6 +1402,15 @@
         <div id="map-container">
             <svg id="map-svg" role="img" aria-label="Hexagonal game map with territories"></svg>
         </div>
+
+        <button class="corner-btn btn-zoom" id="zoom-btn" aria-label="Zoom in">
+            <svg id="zoom-plus-icon" width="24" height="24" viewBox="0 0 640 640" fill="currentColor">
+                <path d="M272.4 112C360.8 112 432.4 183.6 432.4 272C432.4 360.4 360.8 432 272.4 432C184 432 112.4 360.4 112.4 272C112.4 183.6 184 112 272.4 112zM272.4 480C321.2 480 366.1 463.2 401.5 435.1L535.4 569L552.4 586L586.3 552.1L569.3 535.1L435.4 401.2C463.5 365.7 480.3 320.9 480.3 272.1C480.3 157.2 387.2 64.1 272.3 64.1C157.4 64.1 64.3 157.2 64.3 272.1C64.3 387 157.4 480.1 272.3 480.1zM248.4 368L296.4 368L296.4 296L368.4 296L368.4 248L296.4 248L296.4 176L248.4 176L248.4 248L176.4 248L176.4 296L248.4 296L248.4 368z"/>
+            </svg>
+            <svg id="zoom-minus-icon" width="24" height="24" viewBox="0 0 640 640" fill="currentColor" style="display: none;">
+                <path d="M272.4 112C360.8 112 432.4 183.6 432.4 272C432.4 360.4 360.8 432 272.4 432C184 432 112.4 360.4 112.4 272C112.4 183.6 184 112 272.4 112zM272.4 480C321.2 480 366.1 463.2 401.5 435.1L535.4 569L552.4 586L586.3 552.1L569.3 535.1L435.4 401.2C463.5 365.7 480.3 320.9 480.3 272.1C480.3 157.2 387.2 64.1 272.3 64.1C157.4 64.1 64.3 157.2 64.3 272.1C64.3 387 157.4 480.1 272.3 480.1zM200.4 248L176.4 248L176.4 296L368.4 296L368.4 248L200.4 248z"/>
+            </svg>
+        </button>
 
         <button class="corner-btn btn-fast-forward" id="fast-forward-btn" aria-label="Fast forward">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">

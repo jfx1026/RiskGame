@@ -3,6 +3,7 @@
  * Implements turn-based combat gameplay
  */
 
+import { StatusBar } from '@capacitor/status-bar';
 import { generateMap, GeneratedMap, MapGeneratorConfig } from './mapGenerator.js';
 import {
     renderMap,
@@ -178,6 +179,16 @@ function init(): void {
         e.preventDefault();
         toggleFastForward();
     }, { passive: false });
+
+    // Set up Zoom button (click and touch)
+    const zoomBtn = document.getElementById('zoom-btn');
+    if (zoomBtn) {
+        zoomBtn.addEventListener('click', toggleZoom);
+        zoomBtn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            toggleZoom();
+        }, { passive: false });
+    }
 
     // Set up Surrender button (click and touch)
     surrenderButton.addEventListener('click', handleSurrender);
@@ -1482,39 +1493,71 @@ document.addEventListener('touchmove', (event) => {
 }, { passive: true });
 
 // ============================================================
-// MAP PINCH-TO-ZOOM AND PAN
+// MAP ZOOM AND PAN
 // ============================================================
 
 let mapScale = 1;
 let mapTranslateX = 0;
 let mapTranslateY = 0;
-let initialPinchDistance = 0;
-let initialScale = 1;
-let isPinching = false;
 let lastTouchX = 0;
 let lastTouchY = 0;
 let isPanning = false;
-
-const MIN_SCALE = 1;
-const MAX_SCALE = 3;
+let isPortraitMobile = false;
 
 /**
- * Calculate distance between two touch points
+ * Check if we're on a mobile device in portrait orientation
  */
-function getTouchDistance(touches: TouchList): number {
-    const dx = touches[0].clientX - touches[1].clientX;
-    const dy = touches[0].clientY - touches[1].clientY;
-    return Math.sqrt(dx * dx + dy * dy);
+function checkPortraitMobile(): boolean {
+    const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    const isPortrait = window.innerHeight > window.innerWidth;
+    return isMobile && isPortrait;
 }
 
 /**
- * Get the midpoint between two touches
+ * Update portrait state and apply transform
  */
-function getTouchMidpoint(touches: TouchList): { x: number; y: number } {
-    return {
-        x: (touches[0].clientX + touches[1].clientX) / 2,
-        y: (touches[0].clientY + touches[1].clientY) / 2
-    };
+function updateOrientationState(): void {
+    const wasPortrait = isPortraitMobile;
+    isPortraitMobile = checkPortraitMobile();
+
+    // Reset transform when orientation changes
+    if (wasPortrait !== isPortraitMobile) {
+        resetMapTransform();
+    } else {
+        applyMapTransform();
+    }
+
+    // Hide status bar in portrait mode on iOS
+    updateStatusBar();
+}
+
+/**
+ * Show/hide status bar based on orientation
+ */
+async function updateStatusBar(): Promise<void> {
+    try {
+        if (isPortraitMobile) {
+            await StatusBar.hide();
+        } else {
+            await StatusBar.show();
+        }
+    } catch {
+        // StatusBar plugin not available (e.g., in browser)
+    }
+}
+
+/**
+ * Calculate the base scale needed for portrait mode to fill the screen
+ */
+function getPortraitBaseScale(): number {
+    const mapContainer = document.getElementById('map-container');
+    if (!mapContainer) return 1;
+
+    const rect = mapContainer.getBoundingClientRect();
+    // After 90deg rotation, we want the map to fill the width
+    // The ratio of height/width tells us how much to scale up
+    const aspectRatio = rect.height / rect.width;
+    return aspectRatio;
 }
 
 /**
@@ -1523,7 +1566,15 @@ function getTouchMidpoint(touches: TouchList): { x: number; y: number } {
 function applyMapTransform(): void {
     const svg = document.getElementById('map-svg');
     if (svg) {
-        svg.style.transform = `translate(${mapTranslateX}px, ${mapTranslateY}px) scale(${mapScale})`;
+        if (isPortraitMobile) {
+            // Rotate 90 degrees in portrait mode on mobile
+            // Scale up to fill the screen width after rotation
+            const baseScale = getPortraitBaseScale();
+            const totalScale = baseScale * mapScale;
+            svg.style.transform = `translate(${mapTranslateX}px, ${mapTranslateY}px) scale(${totalScale}) rotate(90deg)`;
+        } else {
+            svg.style.transform = `translate(${mapTranslateX}px, ${mapTranslateY}px) scale(${mapScale})`;
+        }
         svg.style.transformOrigin = 'center center';
     }
 }
@@ -1536,6 +1587,51 @@ function resetMapTransform(): void {
     mapTranslateX = 0;
     mapTranslateY = 0;
     applyMapTransform();
+    updateZoomButtonState();
+}
+
+/**
+ * Toggle zoom between 1x and 2x
+ */
+function toggleZoom(): void {
+    if (mapScale === 1) {
+        // Zoom in to 200%
+        mapScale = 2;
+        mapTranslateX = 0;
+        mapTranslateY = 0;
+    } else {
+        // Zoom out to 100%
+        mapScale = 1;
+        mapTranslateX = 0;
+        mapTranslateY = 0;
+    }
+    applyMapTransform();
+    updateZoomButtonState();
+}
+
+/**
+ * Update zoom button icon and state based on current zoom level
+ */
+function updateZoomButtonState(): void {
+    const zoomBtn = document.getElementById('zoom-btn');
+    const plusIcon = document.getElementById('zoom-plus-icon');
+    const minusIcon = document.getElementById('zoom-minus-icon');
+
+    if (!zoomBtn || !plusIcon || !minusIcon) return;
+
+    if (mapScale > 1) {
+        // Show minus icon (zoomed in)
+        plusIcon.style.display = 'none';
+        minusIcon.style.display = 'block';
+        zoomBtn.classList.add('active');
+        zoomBtn.setAttribute('aria-label', 'Zoom out');
+    } else {
+        // Show plus icon (zoomed out)
+        plusIcon.style.display = 'block';
+        minusIcon.style.display = 'none';
+        zoomBtn.classList.remove('active');
+        zoomBtn.setAttribute('aria-label', 'Zoom in');
+    }
 }
 
 /**
@@ -1555,24 +1651,27 @@ function constrainTranslation(): void {
 }
 
 /**
- * Initialize map zoom/pan handlers
+ * Initialize map orientation and pan handlers
  */
 function initMapZoom(): void {
     const mapContainer = document.getElementById('map-container');
     if (!mapContainer) return;
 
+    // Initialize portrait state and listen for orientation changes
+    isPortraitMobile = checkPortraitMobile();
+    window.addEventListener('resize', updateOrientationState);
+    window.addEventListener('orientationchange', updateOrientationState);
+
+    // Apply initial transform (with rotation if in portrait)
+    applyMapTransform();
+
+    // Set initial status bar state
+    updateStatusBar();
+
+    // Single-finger panning when zoomed in
     mapContainer.addEventListener('touchstart', (e: TouchEvent) => {
-        if (e.touches.length === 2) {
-            // Pinch start
-            isPinching = true;
-            isPanning = false;
-            initialPinchDistance = getTouchDistance(e.touches);
-            initialScale = mapScale;
-            e.preventDefault();
-        } else if (e.touches.length === 1 && mapScale > 1.05) {
-            // Pan start (only when noticeably zoomed in)
+        if (e.touches.length === 1 && mapScale > 1.05) {
             isPanning = true;
-            isPinching = false;
             lastTouchX = e.touches[0].clientX;
             lastTouchY = e.touches[0].clientY;
             e.preventDefault();
@@ -1580,22 +1679,7 @@ function initMapZoom(): void {
     }, { passive: false });
 
     mapContainer.addEventListener('touchmove', (e: TouchEvent) => {
-        if (isPinching && e.touches.length === 2) {
-            // Simple pinch zoom from center
-            const currentDistance = getTouchDistance(e.touches);
-            const scaleChange = currentDistance / initialPinchDistance;
-            mapScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, initialScale * scaleChange));
-
-            // Reset translation when zooming back to 1x
-            if (mapScale <= 1.05) {
-                mapTranslateX = 0;
-                mapTranslateY = 0;
-            }
-
-            applyMapTransform();
-            e.preventDefault();
-        } else if (isPanning && e.touches.length === 1 && mapScale > 1.05) {
-            // Pan
+        if (isPanning && e.touches.length === 1 && mapScale > 1.05) {
             const deltaX = e.touches[0].clientX - lastTouchX;
             const deltaY = e.touches[0].clientY - lastTouchY;
 
@@ -1612,37 +1696,10 @@ function initMapZoom(): void {
     }, { passive: false });
 
     mapContainer.addEventListener('touchend', (e: TouchEvent) => {
-        if (e.touches.length < 2) {
-            isPinching = false;
-        }
         if (e.touches.length === 0) {
             isPanning = false;
-            // Snap to 1x if close to it
-            if (mapScale < 1.1) {
-                resetMapTransform();
-            }
         }
     }, { passive: true });
-
-    // Double-tap to reset zoom
-    let lastTapTime = 0;
-    mapContainer.addEventListener('touchend', (e: TouchEvent) => {
-        if (e.touches.length === 0 && e.changedTouches.length === 1) {
-            const currentTime = Date.now();
-            if (currentTime - lastTapTime < 300) {
-                // Double tap detected
-                if (mapScale > 1) {
-                    resetMapTransform();
-                } else {
-                    // Zoom in to 2x on double tap
-                    mapScale = 2;
-                    applyMapTransform();
-                }
-                e.preventDefault();
-            }
-            lastTapTime = currentTime;
-        }
-    }, { passive: false });
 }
 
 // Initialize when DOM is ready
