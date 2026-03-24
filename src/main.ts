@@ -37,7 +37,7 @@ import {
     calculateResupply
 } from './game.js';
 import { formatCombatResult } from './combat.js';
-import { findBestAttack, shouldContinueAttacking } from './ai.js';
+import { findBestAttack, shouldContinueAttacking, Difficulty } from './ai.js';
 
 // DOM Elements
 let svgElement: SVGSVGElement;
@@ -58,6 +58,7 @@ let resumeButton: HTMLButtonElement;
 let currentMap: GeneratedMap | null = null;
 let gameState: GameState | null = null;
 let currentSize: 'small' | 'medium' | 'large' = 'medium';
+let currentDifficulty: Difficulty = 'medium';  // AI difficulty level
 let isComputerPlaying = false;  // True when computer is taking its turn
 let isFastForward = false;  // True when fast forward is enabled
 let gameGeneration = 0;  // Incremented each new game to invalidate stale async ops
@@ -220,6 +221,25 @@ function init(): void {
         }, { passive: false });
     });
 
+    // Set up difficulty buttons on start screen (click and touch)
+    const difficultyButtons = document.querySelectorAll('.difficulty-btn');
+    difficultyButtons.forEach(btn => {
+        const handleDifficultyClick = (e: Event) => {
+            const difficulty = (e.currentTarget as HTMLElement).dataset.difficulty as Difficulty;
+            if (difficulty) {
+                currentDifficulty = difficulty;
+                // Update selected state
+                difficultyButtons.forEach(b => b.classList.remove('selected'));
+                (e.currentTarget as HTMLElement).classList.add('selected');
+            }
+        };
+        btn.addEventListener('click', handleDifficultyClick);
+        btn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            handleDifficultyClick(e);
+        }, { passive: false });
+    });
+
     // Set up resume button (click and touch)
     resumeButton.addEventListener('click', resumeGame);
     resumeButton.addEventListener('touchend', (e) => {
@@ -311,6 +331,12 @@ function showStartScreen(): void {
     document.querySelectorAll('.size-btn').forEach(btn => {
         const size = (btn as HTMLElement).dataset.size;
         btn.classList.toggle('selected', size === currentSize);
+    });
+
+    // Sync difficulty button selected state with currentDifficulty
+    document.querySelectorAll('.difficulty-btn').forEach(btn => {
+        const difficulty = (btn as HTMLElement).dataset.difficulty;
+        btn.classList.toggle('selected', difficulty === currentDifficulty);
     });
 }
 
@@ -1071,8 +1097,8 @@ async function executeComputerTurn(): Promise<void> {
     let attacksThisTurn = 0;
 
     // Attack loop
-    while (shouldContinueAttacking(gameState, attacksThisTurn)) {
-        const attack = findBestAttack(gameState);
+    while (shouldContinueAttacking(gameState, attacksThisTurn, currentDifficulty)) {
+        const attack = findBestAttack(gameState, currentDifficulty);
         if (!attack) break;
 
         const source = gameState.territories.find(t => t.id === attack.sourceId);

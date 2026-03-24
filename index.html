@@ -758,6 +758,61 @@
             box-shadow: var(--shadow-button-active);
         }
 
+        /* ========== DIFFICULTY SELECTOR ========== */
+        .difficulty-selector {
+            margin-top: var(--space-2xl);
+        }
+
+        .difficulty-label {
+            font-size: var(--font-size-sm);
+            color: var(--color-text-secondary);
+            margin-bottom: var(--space-md);
+            font-weight: var(--font-weight-normal);
+        }
+
+        .difficulty-buttons {
+            display: flex;
+            gap: var(--space-sm);
+            justify-content: center;
+        }
+
+        .difficulty-btn {
+            padding: var(--space-sm) var(--space-lg);
+            font-size: var(--font-size-sm);
+            font-weight: var(--font-weight-bold);
+            font-family: var(--font-family);
+            background: var(--color-bg-panel);
+            color: var(--color-text-secondary);
+            border: 2px solid var(--color-text-muted);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            min-width: 80px;
+            min-height: var(--touch-target-min);
+            transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+            touch-action: manipulation;
+        }
+
+        .difficulty-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--color-text-primary);
+            color: var(--color-text-primary);
+        }
+
+        .difficulty-btn:active {
+            background: var(--color-btn-primary-active);
+        }
+
+        .difficulty-btn:focus-visible {
+            outline: none;
+            border-color: var(--color-btn-focus-ring);
+        }
+
+        .difficulty-btn.selected {
+            background: var(--color-btn-primary);
+            border-color: var(--color-btn-primary);
+            color: var(--color-text-on-button);
+        }
+
         .resume-btn {
             margin-top: var(--space-2xl);
             padding: var(--space-md) var(--space-3xl);
@@ -1164,6 +1219,16 @@
                 font-size: var(--font-size-sm);
             }
 
+            .difficulty-selector {
+                margin-top: var(--space-lg);
+            }
+
+            .difficulty-btn {
+                padding: var(--space-xs) var(--space-md);
+                min-width: 70px;
+                font-size: var(--font-size-xs);
+            }
+
             .victory-content h2,
             .game-start-content h2 {
                 font-size: var(--font-size-xl);
@@ -1305,6 +1370,19 @@
                 background: var(--color-btn-primary-active);
             }
 
+            .difficulty-btn:active {
+                background: var(--color-btn-primary-active);
+            }
+
+            /* Preserve selected state for difficulty buttons */
+            .difficulty-btn.selected,
+            .difficulty-btn.selected:hover,
+            .difficulty-btn.selected:active {
+                background: var(--color-btn-primary);
+                border-color: var(--color-btn-primary);
+                color: var(--color-text-on-button);
+            }
+
             .modal-buttons button:active {
                 opacity: 0.8;
             }
@@ -1326,6 +1404,14 @@
                 <button class="size-btn" data-size="small">Small</button>
                 <button class="size-btn" data-size="medium">Medium</button>
                 <button class="size-btn" data-size="large">Large</button>
+            </div>
+            <div class="difficulty-selector">
+                <h3 class="difficulty-label">Difficulty</h3>
+                <div class="difficulty-buttons">
+                    <button class="difficulty-btn" data-difficulty="easy">Easy</button>
+                    <button class="difficulty-btn selected" data-difficulty="medium">Medium</button>
+                    <button class="difficulty-btn" data-difficulty="hard">Hard</button>
+                </div>
             </div>
             <button class="resume-btn hidden" id="resume-btn">Resume Game</button>
             <button class="instructions-link" id="instructions-link">How to Play</button>

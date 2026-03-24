@@ -14,6 +14,35 @@ export interface AttackDecision {
 }
 
 /**
+ * Difficulty levels for AI opponents
+ */
+export type Difficulty = 'easy' | 'medium' | 'hard';
+
+/**
+ * Difficulty configuration - affects AI decision quality
+ */
+const DIFFICULTY_CONFIG = {
+    easy: {
+        scoreMultiplier: 0.4,      // Much dumber scoring decisions
+        thresholdAdjustment: 10,   // Much higher threshold = attacks rarely
+        maxAttacksMultiplier: 0.3, // Very few attacks per turn
+        randomNoise: 0.25,         // 25% random noise = very inconsistent
+    },
+    medium: {
+        scoreMultiplier: 1.0,      // Current behavior
+        thresholdAdjustment: 0,
+        maxAttacksMultiplier: 1.0,
+        randomNoise: 0.05,         // 5% noise
+    },
+    hard: {
+        scoreMultiplier: 1.4,      // Sharper scoring
+        thresholdAdjustment: -5,   // Lower threshold = attacks more
+        maxAttacksMultiplier: 1.5, // More attacks
+        randomNoise: 0.02,         // 2% noise (very consistent)
+    },
+};
+
+/**
  * AI Personality types - each team has a distinct play style
  */
 export type AIPersonality =
@@ -45,9 +74,9 @@ export function getTeamPersonality(teamId: number): AIPersonality {
 
 /**
  * Find all possible attacks for the current team
- * Returns attacks sorted by score (best first), adjusted for personality
+ * Returns attacks sorted by score (best first), adjusted for personality and difficulty
  */
-export function findAllAttacks(state: GameState): AttackDecision[] {
+export function findAllAttacks(state: GameState, difficulty: Difficulty = 'medium'): AttackDecision[] {
     const currentTeam = getCurrentTeam(state);
     const personality = getTeamPersonality(currentTeam.id);
     const attacks: AttackDecision[] = [];
@@ -62,8 +91,8 @@ export function findAllAttacks(state: GameState): AttackDecision[] {
         const targets = getValidAttackTargets(source, state.territories);
 
         for (const target of targets) {
-            // Calculate attack score based on personality
-            const score = calculateAttackScore(source, target, personality, state, currentTeam.id);
+            // Calculate attack score based on personality and difficulty
+            const score = calculateAttackScore(source, target, personality, state, currentTeam.id, difficulty);
 
             attacks.push({
                 sourceId: source.id,
@@ -85,14 +114,15 @@ export function findAllAttacks(state: GameState): AttackDecision[] {
 }
 
 /**
- * Calculate attack score based on army advantage and personality
+ * Calculate attack score based on army advantage, personality, and difficulty
  */
 function calculateAttackScore(
     source: Territory,
     target: Territory,
     personality: AIPersonality,
     state: GameState,
-    teamId: number
+    teamId: number,
+    difficulty: Difficulty = 'medium'
 ): number {
     // Base score components
     const ratio = source.armies / target.armies;
@@ -155,6 +185,49 @@ function calculateAttackScore(
             break;
     }
 
+    // Apply hard mode bonuses (additional strategic considerations)
+    if (difficulty === 'hard') {
+        score = applyHardModeBonus(score, source, target, state, teamId);
+    }
+
+    // Apply difficulty scaling
+    const config = DIFFICULTY_CONFIG[difficulty];
+    score *= config.scoreMultiplier;
+
+    // Add random noise based on difficulty (makes easier difficulties less consistent)
+    const noise = (Math.random() - 0.5) * 2 * config.randomNoise * Math.abs(score);
+    score += noise;
+
+    return score;
+}
+
+/**
+ * Apply additional scoring bonuses for Hard mode
+ * Hard mode AI considers more strategic factors
+ */
+function applyHardModeBonus(
+    score: number,
+    source: Territory,
+    target: Territory,
+    state: GameState,
+    teamId: number
+): number {
+    // Elimination targeting: +20 bonus if this attack could eliminate a player
+    if (wouldEliminatePlayer(target, state.territories)) {
+        score += 20;
+    }
+
+    // Territory consolidation: +15 bonus if this connects our groups
+    if (wouldConnectTerritories(target, state.territories, teamId)) {
+        score += 15;
+    }
+
+    // Strategic position: bonus for high-degree territories
+    const degree = target.neighbors.size;
+    if (degree >= 4) {
+        score += degree * 2;
+    }
+
     return score;
 }
 
@@ -213,64 +286,80 @@ function wouldConnectTerritories(target: Territory, territories: Territory[], te
 }
 
 /**
- * Get the minimum score threshold for attacking based on personality
+ * Get the minimum score threshold for attacking based on personality and difficulty
  */
-function getAttackThreshold(personality: AIPersonality): number {
+function getAttackThreshold(personality: AIPersonality, difficulty: Difficulty = 'medium'): number {
+    let base: number;
     switch (personality) {
         case 'aggressive':
-            return -5;   // Will attack even at a disadvantage
+            base = -5;   // Will attack even at a disadvantage
+            break;
         case 'strategic':
-            return 12;   // Only attacks with clear advantage
+            base = 12;   // Only attacks with clear advantage
+            break;
         case 'positional':
-            return 5;    // Moderate threshold
+            base = 5;    // Moderate threshold
+            break;
         case 'longterm':
-            return 15;   // Very conservative
+            base = 15;   // Very conservative
+            break;
         case 'connector':
-            return 3;    // Will take risks to connect
+            base = 3;    // Will take risks to connect
+            break;
         case 'erratic':
-            return Math.random() * 20 - 5;  // Random threshold each time
+            base = Math.random() * 20 - 5;  // Random threshold each time
+            break;
         default:
-            return 5;
+            base = 5;
     }
+    return base + DIFFICULTY_CONFIG[difficulty].thresholdAdjustment;
 }
 
 /**
- * Get max attacks per turn based on personality
+ * Get max attacks per turn based on personality and difficulty
  */
-function getMaxAttacks(personality: AIPersonality): number {
+function getMaxAttacks(personality: AIPersonality, difficulty: Difficulty = 'medium'): number {
+    let base: number;
     switch (personality) {
         case 'aggressive':
-            return 20;   // Loves to attack
+            base = 20;   // Loves to attack
+            break;
         case 'strategic':
-            return 10;   // Measured approach
+            base = 10;   // Measured approach
+            break;
         case 'positional':
-            return 12;   // Moderate
+            base = 12;   // Moderate
+            break;
         case 'longterm':
-            return 6;    // Few but calculated attacks
+            base = 6;    // Few but calculated attacks
+            break;
         case 'connector':
-            return 15;   // Will attack to connect
+            base = 15;   // Will attack to connect
+            break;
         case 'erratic':
-            return Math.floor(Math.random() * 15) + 5;  // Random each turn
+            base = Math.floor(Math.random() * 15) + 5;  // Random each turn
+            break;
         default:
-            return 12;
+            base = 12;
     }
+    return Math.floor(base * DIFFICULTY_CONFIG[difficulty].maxAttacksMultiplier);
 }
 
 /**
  * Find the best attack for the current team
  * Returns null if no good attacks are available
  */
-export function findBestAttack(state: GameState): AttackDecision | null {
+export function findBestAttack(state: GameState, difficulty: Difficulty = 'medium'): AttackDecision | null {
     const currentTeam = getCurrentTeam(state);
     const personality = getTeamPersonality(currentTeam.id);
-    const attacks = findAllAttacks(state);
+    const attacks = findAllAttacks(state, difficulty);
 
     if (attacks.length === 0) {
         return null;
     }
 
     const bestAttack = attacks[0];
-    const threshold = getAttackThreshold(personality);
+    const threshold = getAttackThreshold(personality, difficulty);
 
     if (bestAttack.score >= threshold) {
         return bestAttack;
@@ -283,17 +372,17 @@ export function findBestAttack(state: GameState): AttackDecision | null {
  * Check if the computer should continue attacking
  * Returns false if turn should end
  */
-export function shouldContinueAttacking(state: GameState, attacksThisTurn: number): boolean {
+export function shouldContinueAttacking(state: GameState, attacksThisTurn: number, difficulty: Difficulty = 'medium'): boolean {
     const currentTeam = getCurrentTeam(state);
     const personality = getTeamPersonality(currentTeam.id);
-    const maxAttacks = getMaxAttacks(personality);
+    const maxAttacks = getMaxAttacks(personality, difficulty);
 
     if (attacksThisTurn >= maxAttacks) {
         return false;
     }
 
     // Check if there are any valid attacks left
-    const bestAttack = findBestAttack(state);
+    const bestAttack = findBestAttack(state, difficulty);
     return bestAttack !== null;
 }
 
