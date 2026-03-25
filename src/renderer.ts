@@ -1292,6 +1292,77 @@ export function cancelDiceAnimation(): void {
     }
 }
 
+/**
+ * Show preview dice when a territory is selected
+ * Shows blank dice representing potential attack dice (armies - 1, max 4)
+ */
+export function showDicePreview(armyCount: number, teamColor: string): void {
+    const diceBar = document.getElementById('dice-bar');
+    const attackerDiceContainer = document.getElementById('attacker-dice');
+    const defenderDiceContainer = document.getElementById('defender-dice');
+    const diceArrow = document.getElementById('dice-arrow');
+
+    if (!diceBar || !attackerDiceContainer || !defenderDiceContainer) {
+        return;
+    }
+
+    // Cancel any pending animations
+    cancelDiceAnimation();
+
+    // Clear previous state
+    attackerDiceContainer.innerHTML = '';
+    defenderDiceContainer.innerHTML = '';
+    attackerDiceContainer.classList.remove('winner');
+    defenderDiceContainer.classList.remove('winner');
+    attackerDiceContainer.classList.add('preview');
+    defenderDiceContainer.classList.add('preview');
+    diceBar.classList.remove('fading');
+
+    // Set team color as background for attacker
+    attackerDiceContainer.style.backgroundColor = teamColor;
+    // Empty/transparent for defender
+    defenderDiceContainer.style.backgroundColor = 'rgba(128, 128, 128, 0.3)';
+
+    // Add preview-mode class to dice bar for centered layout
+    diceBar.classList.add('preview-mode');
+
+    // Calculate dice count (armies - 1, showing all potential attack dice)
+    const diceCount = Math.max(armyCount - 1, 0);
+
+    // Create blank dice for attacker
+    for (let i = 0; i < diceCount; i++) {
+        const die = document.createElement('div');
+        die.className = 'die blank';
+        attackerDiceContainer.appendChild(die);
+    }
+
+    // Show the dice bar
+    diceBar.classList.add('visible');
+    diceBar.setAttribute('aria-hidden', 'false');
+}
+
+/**
+ * Hide the dice preview
+ */
+export function hideDicePreview(): void {
+    const diceBar = document.getElementById('dice-bar');
+    const attackerDiceContainer = document.getElementById('attacker-dice');
+    const defenderDiceContainer = document.getElementById('defender-dice');
+    const diceArrow = document.getElementById('dice-arrow');
+
+    if (!diceBar) {
+        return;
+    }
+
+    // Only hide if in preview mode (not during combat animation)
+    if (attackerDiceContainer?.classList.contains('preview')) {
+        diceBar.classList.remove('visible', 'fading', 'preview-mode');
+        diceBar.setAttribute('aria-hidden', 'true');
+        attackerDiceContainer.classList.remove('preview');
+        defenderDiceContainer?.classList.remove('preview');
+    }
+}
+
 export function showDiceAnimation(
     result: CombatResult,
     attackerColor: string,
@@ -1314,9 +1385,9 @@ export function showDiceAnimation(
         // Clear previous state
         attackerDiceContainer.innerHTML = '';
         defenderDiceContainer.innerHTML = '';
-        attackerDiceContainer.classList.remove('winner');
-        defenderDiceContainer.classList.remove('winner');
-        diceBar.classList.remove('fading');
+        attackerDiceContainer.classList.remove('winner', 'preview');
+        defenderDiceContainer.classList.remove('winner', 'preview');
+        diceBar.classList.remove('fading', 'preview-mode');
 
         // Set team colors as backgrounds
         attackerDiceContainer.style.backgroundColor = attackerColor;

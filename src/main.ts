@@ -16,6 +16,8 @@ import {
     showCombatAnimation,
     showDiceAnimation,
     cancelDiceAnimation,
+    showDicePreview,
+    hideDicePreview,
     updateTerritoryDisplay,
     markCurrentPlayerTerritories
 } from './renderer.js';
@@ -756,6 +758,7 @@ function handleSvgBackgroundClick(event: MouseEvent | TouchEvent): void {
             gameState = deselectTerritory(gameState);
             deselectAll(svgElement);
             clearHighlights(svgElement);
+            hideDicePreview();
         }
     }
 }
@@ -810,6 +813,7 @@ async function handleHexClick(clickedTerritory: Territory, hex: Hex, event: Mous
             gameState = deselectTerritory(gameState);
             deselectAll(svgElement);
             clearHighlights(svgElement);
+            hideDicePreview();
             return;
         }
 
@@ -826,6 +830,11 @@ async function handleHexClick(clickedTerritory: Territory, hex: Hex, event: Mous
         const targets = getSelectedTerritoryTargets(gameState);
         if (targets.length > 0) {
             highlightValidTargets(svgElement, targets.map(t => t.id));
+            // Show dice preview with potential attack dice
+            const currentTeam = getCurrentTeam(gameState);
+            showDicePreview(territory.armies, currentTeam.color);
+        } else {
+            hideDicePreview();
         }
     }
     // If clicking on enemy territory while we have a selection
@@ -835,6 +844,9 @@ async function handleHexClick(clickedTerritory: Territory, hex: Hex, event: Mous
         const isValidTarget = targets.some(t => t.id === territory.id);
 
         if (isValidTarget) {
+            // Hide dice preview before attack
+            hideDicePreview();
+
             // Execute attack
             const sourceTerritory = gameState.territories.find(t => t.id === gameState!.selectedTerritory);
 
@@ -881,6 +893,12 @@ async function handleHexClick(clickedTerritory: Territory, hex: Hex, event: Mous
                     const newTargets = getSelectedTerritoryTargets(gameState);
                     if (newTargets.length > 0) {
                         highlightValidTargets(svgElement, newTargets.map(t => t.id));
+                        // Show dice preview for the newly selected territory
+                        const selectedTerritory = gameState.territories.find(t => t.id === gameState!.selectedTerritory);
+                        if (selectedTerritory) {
+                            const currentTeam = getCurrentTeam(gameState);
+                            showDicePreview(selectedTerritory.armies, currentTeam.color);
+                        }
                     }
                 }
             }
@@ -932,6 +950,7 @@ function handleEndTurn(): void {
     // Clear selection and highlights
     deselectAll(svgElement);
     clearHighlights(svgElement);
+    hideDicePreview();
 
     // Re-render all territories to show updated army counts
     if (currentMap) {

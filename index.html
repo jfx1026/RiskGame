@@ -357,21 +357,21 @@
 
         #attacker-dice {
             position: absolute;
-            right: calc(50% + 24px);
+            right: calc(50% + 20px);
             justify-content: flex-end;
         }
 
         #defender-dice {
             position: absolute;
-            left: calc(50% + 24px);
+            left: calc(50% + 20px);
             justify-content: flex-start;
         }
 
         .dice-group {
             display: flex;
-            gap: 4px;
-            padding: 8px 12px;
-            border-radius: 12px;
+            gap: 3px;
+            padding: 6px 10px;
+            border-radius: 10px;
             transition: box-shadow 0.2s ease-out;
         }
 
@@ -379,13 +379,36 @@
             box-shadow: 0 0 0 3px #00FFFF, 0 0 16px 4px rgba(0, 255, 255, 0.5);
         }
 
+        .dice-group.preview {
+            opacity: 0.8;
+        }
+
+        /* When in preview mode, center just the attacker dice */
+        .dice-bar.preview-mode #attacker-dice {
+            position: static;
+            right: auto;
+        }
+
+        .dice-bar.preview-mode #defender-dice {
+            display: none;
+        }
+
+        .dice-bar.preview-mode .dice-arrow {
+            display: none;
+        }
+
         .die {
-            width: 36px;
-            height: 36px;
-            border-radius: 6px;
+            width: 30px;
+            height: 30px;
+            border-radius: 5px;
             box-sizing: border-box;
-            border: 3px solid transparent;
+            border: 2px solid transparent;
             transition: border-color 0.15s ease-out;
+        }
+
+        .die.blank {
+            background: rgba(255, 255, 255, 0.3);
+            border: 2px dashed rgba(255, 255, 255, 0.5);
         }
 
         .die.win {
@@ -401,12 +424,12 @@
             align-items: center;
             justify-content: center;
             flex-shrink: 0;
-            margin: 0 8px;
+            margin: 0 6px;
         }
 
         .dice-arrow svg {
-            width: 24px;
-            height: 32px;
+            width: 20px;
+            height: 27px;
             filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
         }
 
@@ -1094,7 +1117,7 @@
 
             /* Dice bar adjustments for mobile */
             .dice-bar {
-                bottom: 100px; /* Above the sidebar */
+                bottom: 140px; /* Above the sidebar */
                 flex-direction: row;
                 gap: var(--space-xs);
             }
@@ -1115,21 +1138,21 @@
             }
 
             .dice-group {
-                padding: var(--space-xs) var(--space-sm);
+                padding: 8px 12px;
             }
 
             .die {
-                width: 28px;
-                height: 28px;
+                width: 36px;
+                height: 36px;
             }
 
             .dice-arrow {
-                margin: 0 var(--space-xs);
+                margin: 0 8px;
             }
 
             .dice-arrow svg {
-                width: 18px;
-                height: 24px;
+                width: 24px;
+                height: 32px;
             }
 
             /* Modal adjustments */
@@ -1190,18 +1213,18 @@
 
             /* Smaller dice on very small screens */
             .die {
-                width: 24px;
-                height: 24px;
+                width: 28px;
+                height: 28px;
             }
 
             .dice-group {
-                padding: 4px 6px;
-                gap: 2px;
+                padding: 6px 10px;
+                gap: 3px;
             }
 
             .dice-arrow svg {
-                width: 14px;
-                height: 20px;
+                width: 18px;
+                height: 24px;
             }
 
             /* Compact modals */
@@ -1322,6 +1345,25 @@
 
             .dice-bar {
                 bottom: 10px;
+            }
+
+            .dice-group {
+                padding: 5px 8px;
+                gap: 2px;
+            }
+
+            .die {
+                width: 26px;
+                height: 26px;
+            }
+
+            .dice-arrow {
+                margin: 0 5px;
+            }
+
+            .dice-arrow svg {
+                width: 17px;
+                height: 23px;
             }
 
             .btn-fast-forward {
