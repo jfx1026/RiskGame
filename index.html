@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Risk Game - Hexagonal Strategy</title>
     <link rel="stylesheet" href="./src/design-tokens.css">
     <style>
@@ -1251,54 +1251,58 @@
             }
 
             .sidebar {
-                width: 140px;
+                width: calc(120px + env(safe-area-inset-left, 0px));
                 height: 100%;
                 flex-direction: column;
                 order: 0;
                 border-top: none;
                 border-right: 1px solid var(--color-accent-divider);
-                padding: var(--space-xl);
-                padding-top: calc(var(--space-xl) + var(--safe-area-top));
-                padding-bottom: calc(var(--space-xl) + var(--safe-area-bottom));
-                padding-left: calc(var(--space-xl) + var(--safe-area-left));
+                padding: var(--space-sm);
+                padding-top: calc(var(--space-sm) + env(safe-area-inset-top, 0px));
+                padding-bottom: calc(var(--space-sm) + env(safe-area-inset-bottom, 0px));
+                padding-left: calc(var(--space-sm) + env(safe-area-inset-left, 0px));
+                box-sizing: border-box;
             }
 
             .sidebar-top {
-                height: 50px;
+                height: 40px;
             }
 
             .sidebar-bottom {
-                height: 50px;
+                height: 40px;
             }
 
             .team-stats {
                 flex-direction: column;
                 overflow-y: auto;
                 overflow-x: hidden;
-                justify-content: flex-start;
-                gap: var(--space-xs);
+                justify-content: center;
+                gap: 2px;
             }
 
             .team-stat-row {
                 flex-direction: row;
                 min-width: auto;
-                padding: var(--space-xs);
+                padding: 2px;
             }
 
             .team-hex-icon {
-                width: 32px;
-                height: 36px;
+                width: 28px;
+                height: 32px;
             }
 
             .team-numbers {
-                font-size: var(--font-size-sm);
+                font-size: var(--font-size-xs);
                 text-align: left;
+                min-width: 55px;
             }
 
             .btn-back {
                 position: relative;
                 top: auto;
                 left: auto;
+                width: 40px;
+                height: 40px;
             }
 
             .btn-end-turn {
@@ -1306,6 +1310,7 @@
                 bottom: auto;
                 left: auto;
                 width: 100%;
+                height: 40px;
                 padding: 0 var(--space-sm);
                 font-size: var(--font-size-xs);
             }

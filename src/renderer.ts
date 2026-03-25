@@ -1272,6 +1272,26 @@ function createDieElement(value: number): HTMLDivElement {
  * Show dice bar for combat visualization
  * Sequence: Show dice → highlight winners/losers → fade out
  */
+// Track dice animation timeouts so they can be cancelled
+let diceAnimationTimeouts: number[] = [];
+
+/**
+ * Cancel any pending dice animations
+ */
+export function cancelDiceAnimation(): void {
+    for (const timeoutId of diceAnimationTimeouts) {
+        clearTimeout(timeoutId);
+    }
+    diceAnimationTimeouts = [];
+
+    // Also hide the dice bar immediately
+    const diceBar = document.getElementById('dice-bar');
+    if (diceBar) {
+        diceBar.classList.remove('visible', 'fading');
+        diceBar.setAttribute('aria-hidden', 'true');
+    }
+}
+
 export function showDiceAnimation(
     result: CombatResult,
     attackerColor: string,
@@ -1287,6 +1307,9 @@ export function showDiceAnimation(
             resolve();
             return;
         }
+
+        // Clear any pending animations from previous calls
+        cancelDiceAnimation();
 
         // Clear previous state
         attackerDiceContainer.innerHTML = '';
@@ -1330,7 +1353,7 @@ export function showDiceAnimation(
         diceBar.setAttribute('aria-hidden', 'false');
 
         // Step 2: After brief pause, highlight winners/losers
-        setTimeout(() => {
+        const timeout1 = window.setTimeout(() => {
             // Mark overall winner with glow
             if (result.attackerWins) {
                 attackerDiceContainer.classList.add('winner');
@@ -1352,16 +1375,19 @@ export function showDiceAnimation(
             }
 
             // Step 3: After showing results, fade out
-            setTimeout(() => {
+            const timeout2 = window.setTimeout(() => {
                 diceBar.classList.add('fading');
 
                 // Step 4: After fade completes, hide and resolve
-                setTimeout(() => {
+                const timeout3 = window.setTimeout(() => {
                     diceBar.classList.remove('visible', 'fading');
                     diceBar.setAttribute('aria-hidden', 'true');
                     resolve();
                 }, 250); // Match CSS transition duration
+                diceAnimationTimeouts.push(timeout3);
             }, 600);
+            diceAnimationTimeouts.push(timeout2);
         }, 300);
+        diceAnimationTimeouts.push(timeout1);
     });
 }

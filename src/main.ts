@@ -15,6 +15,7 @@ import {
     clearHighlights,
     showCombatAnimation,
     showDiceAnimation,
+    cancelDiceAnimation,
     updateTerritoryDisplay,
     markCurrentPlayerTerritories
 } from './renderer.js';
@@ -289,12 +290,8 @@ function handleBack(): void {
     isComputerPlaying = false;
     gameStarted = false;
 
-    // Hide dice bar
-    const diceBar = document.getElementById('dice-bar');
-    if (diceBar) {
-        diceBar.classList.remove('visible', 'fading');
-        diceBar.setAttribute('aria-hidden', 'true');
-    }
+    // Cancel any pending dice animations
+    cancelDiceAnimation();
 
     stopConfetti();
     showStartScreen();
@@ -554,12 +551,8 @@ function executeSurrender(): void {
     isComputerPlaying = false;
     gameStarted = false;
 
-    // Hide dice bar
-    const diceBar = document.getElementById('dice-bar');
-    if (diceBar) {
-        diceBar.classList.remove('visible', 'fading');
-        diceBar.setAttribute('aria-hidden', 'true');
-    }
+    // Cancel any pending dice animations
+    cancelDiceAnimation();
 
     const humanTeam = gameState.teams.find(t => t.isHuman);
     if (!humanTeam) return;
