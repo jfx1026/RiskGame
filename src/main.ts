@@ -467,46 +467,58 @@ function showNewGameConfirmation(size: 'small' | 'medium' | 'large'): void {
  * Resume the current game in progress
  */
 function resumeGame(): void {
-    if (gameState && gameState.phase !== 'gameOver') {
-        // Reset map zoom/pan
-        resetMapTransform();
+    // Validate we have everything needed to resume
+    if (!gameState || !gameStarted || gameState.phase === 'gameOver') {
+        console.warn('Cannot resume: invalid game state');
+        return;
+    }
 
-        // If resuming from a cold start, we need to rebuild the map structure
-        if (!currentMap) {
-            // Reconstruct currentMap from saved territories
-            currentMap = {
-                territories: gameState.territories,
-                config: GAME_CONFIGS[currentSize].map as MapGeneratorConfig,
-            };
-        }
+    if (!gameState.territories || gameState.territories.length === 0) {
+        console.warn('Cannot resume: no territories');
+        return;
+    }
 
-        // Render the map
-        renderMap(svgElement, currentMap);
+    if (!svgElement) {
+        console.warn('Cannot resume: SVG element not found');
+        return;
+    }
 
-        // Re-add interactivity handlers
-        addClickHandlers(svgElement, currentMap.territories, handleHexClick);
-        addHoverHandlers(svgElement, currentMap.territories, handleTerritoryHover);
+    // Reset map zoom/pan
+    resetMapTransform();
 
-        // Update UI
-        updateTurnIndicator();
-        updateStats();
-        clearCombatLog();
+    // Rebuild the map structure from saved territories
+    currentMap = {
+        territories: gameState.territories,
+        config: GAME_CONFIGS[currentSize].map as MapGeneratorConfig,
+    };
 
-        // Log that game was resumed
-        const humanTeam = gameState.teams.find(t => t.isHuman);
-        if (humanTeam) {
-            logCombatResult(`Game resumed - You are ${humanTeam.name}`);
-        }
+    // Render the map
+    renderMap(svgElement, currentMap);
 
-        // If it's a computer's turn, run computer turns
-        const currentTeam = getCurrentTeam(gameState);
-        if (!currentTeam.isHuman && gameStarted) {
-            isComputerPlaying = true;
-            endTurnButton.disabled = true;
-            runComputerTurns();
-        }
+    // Re-add interactivity handlers
+    addClickHandlers(svgElement, currentMap.territories, handleHexClick);
+    addHoverHandlers(svgElement, currentMap.territories, handleTerritoryHover);
 
-        showGameScreen();
+    // Update UI
+    updateTurnIndicator();
+    updateStats();
+    clearCombatLog();
+
+    // Log that game was resumed
+    const humanTeam = gameState.teams.find(t => t.isHuman);
+    if (humanTeam) {
+        logCombatResult(`Game resumed - You are ${humanTeam.name}`);
+    }
+
+    // Show the game screen
+    showGameScreen();
+
+    // If it's a computer's turn, run computer turns
+    const currentTeam = getCurrentTeam(gameState);
+    if (!currentTeam.isHuman) {
+        isComputerPlaying = true;
+        endTurnButton.disabled = true;
+        runComputerTurns();
     }
 }
 
