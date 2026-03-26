@@ -255,8 +255,13 @@ async function init(): Promise<void> {
     });
 
     // Set up resume button (click and touch)
-    resumeButton.addEventListener('click', resumeGame);
+    console.log('Setting up resume button listeners', resumeButton);
+    resumeButton.addEventListener('click', () => {
+        console.log('Resume button CLICKED');
+        resumeGame();
+    });
     resumeButton.addEventListener('touchend', (e) => {
+        console.log('Resume button TOUCHED');
         e.preventDefault();
         resumeGame();
     }, { passive: false });
