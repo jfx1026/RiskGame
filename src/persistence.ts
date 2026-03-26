@@ -81,12 +81,12 @@ function deserializeTerritory(serialized: SerializedTerritory): Territory {
     return {
         id: serialized.id,
         name: serialized.name,
-        hexes: new Set(serialized.hexes),
+        hexes: new Set(serialized.hexes || []),
         color: serialized.color,
-        neighbors: new Set(serialized.neighbors),
+        neighbors: new Set(serialized.neighbors || []),
         owner: serialized.owner,
-        armies: serialized.armies,
-        type: serialized.type,
+        armies: serialized.armies || 1,
+        type: serialized.type || 'small',
         armyHex: serialized.armyHex,
     };
 }
@@ -175,6 +175,13 @@ export async function loadGame(): Promise<{
 
         const savedData: SavedGameData = JSON.parse(value);
 
+        // Validate basic structure exists
+        if (!savedData || !savedData.gameState || !savedData.gameState.territories) {
+            console.warn('Invalid saved game structure, clearing save');
+            await clearSavedGame();
+            return null;
+        }
+
         // Version check for future migrations
         if (savedData.version !== SAVE_VERSION) {
             console.warn('Saved game version mismatch, clearing save');
@@ -188,6 +195,13 @@ export async function loadGame(): Promise<{
             return null;
         }
 
+        // Validate territories array
+        if (!Array.isArray(savedData.gameState.territories) || savedData.gameState.territories.length === 0) {
+            console.warn('Invalid territories in saved game, clearing save');
+            await clearSavedGame();
+            return null;
+        }
+
         return {
             gameState: deserializeGameState(savedData.gameState),
             currentSize: savedData.currentSize,
@@ -196,6 +210,8 @@ export async function loadGame(): Promise<{
         };
     } catch (error) {
         console.error('Failed to load game:', error);
+        // Clear corrupted save data
+        await clearSavedGame();
         return null;
     }
 }
