@@ -297,6 +297,10 @@ async function init(): Promise<void> {
         currentSize = savedGame.currentSize;
         currentDifficulty = savedGame.currentDifficulty;
         gameStarted = savedGame.gameStarted;
+
+        // Update Resume button visibility since we loaded a game
+        const hasActiveGame = gameState.phase !== 'gameOver';
+        resumeButton.classList.toggle('hidden', !hasActiveGame);
     }
 
     // Show title screen first, then start screen
@@ -431,6 +435,8 @@ function showNewGameConfirmation(size: 'small' | 'medium' | 'large'): void {
         if (target.id === 'cancel-new-game-btn') {
             overlay.removeEventListener('click', handleClick);
             overlay.remove();
+            // Ensure Resume button is visible since there's an active game
+            resumeButton.classList.remove('hidden');
         } else if (target.id === 'confirm-new-game-btn') {
             overlay.removeEventListener('click', handleClick);
             overlay.remove();
