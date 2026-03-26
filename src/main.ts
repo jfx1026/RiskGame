@@ -298,9 +298,12 @@ async function init(): Promise<void> {
         currentDifficulty = savedGame.currentDifficulty;
         gameStarted = savedGame.gameStarted;
 
-        // Update Resume button visibility since we loaded a game
+        // Show Resume button since we have an active game
         const hasActiveGame = gameState.phase !== 'gameOver';
         resumeButton.classList.toggle('hidden', !hasActiveGame);
+    } else {
+        // No saved game - hide Resume button
+        resumeButton.classList.add('hidden');
     }
 
     // Show title screen first, then start screen
