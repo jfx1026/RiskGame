@@ -292,11 +292,15 @@ async function init(): Promise<void> {
 
     // Try to load a saved game
     const savedGame = await loadGame();
+    console.log('Loaded saved game:', { exists: !!savedGame, gameStarted: savedGame?.gameStarted, phase: savedGame?.gameState?.phase });
+
     if (savedGame && savedGame.gameStarted && savedGame.gameState.phase !== 'gameOver') {
         gameState = savedGame.gameState;
         currentSize = savedGame.currentSize;
         currentDifficulty = savedGame.currentDifficulty;
         gameStarted = savedGame.gameStarted;
+
+        console.log('Game state restored:', { gameStarted, territories: gameState.territories.length, phase: gameState.phase });
 
         // Validate the loaded game has territories (basic sanity check)
         const hasValidGame = gameState.territories && gameState.territories.length > 0;
@@ -467,9 +471,11 @@ function showNewGameConfirmation(size: 'small' | 'medium' | 'large'): void {
  * Resume the current game in progress
  */
 function resumeGame(): void {
+    console.log('resumeGame called', { gameState: !!gameState, gameStarted, phase: gameState?.phase });
+
     // Validate we have everything needed to resume
     if (!gameState || !gameStarted || gameState.phase === 'gameOver') {
-        console.warn('Cannot resume: invalid game state');
+        console.warn('Cannot resume: invalid game state', { gameState: !!gameState, gameStarted, phase: gameState?.phase });
         return;
     }
 
