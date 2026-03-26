@@ -498,8 +498,25 @@ function resumeGame(): void {
     resetMapTransform();
 
     // Rebuild the map structure from saved territories
+    // We need to reconstruct allHexes from the territory data
+    const allHexes: Hex[] = [];
+    const seenHexKeys = new Set<string>();
+
+    for (const territory of gameState.territories) {
+        for (const hexKey of territory.hexes) {
+            if (!seenHexKeys.has(hexKey)) {
+                seenHexKeys.add(hexKey);
+                // Parse "q,r" format back to Hex object
+                const [q, r] = hexKey.split(',').map(Number);
+                allHexes.push({ q, r });
+            }
+        }
+    }
+
     currentMap = {
         territories: gameState.territories,
+        allHexes,
+        emptyHexes: new Set<string>(),  // Empty tiles aren't critical for gameplay
         config: GAME_CONFIGS[currentSize].map as MapGeneratorConfig,
     };
 
