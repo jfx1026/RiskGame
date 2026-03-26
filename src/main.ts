@@ -292,18 +292,29 @@ async function init(): Promise<void> {
 
     // Try to load a saved game
     const savedGame = await loadGame();
-    if (savedGame) {
+    if (savedGame && savedGame.gameStarted && savedGame.gameState.phase !== 'gameOver') {
         gameState = savedGame.gameState;
         currentSize = savedGame.currentSize;
         currentDifficulty = savedGame.currentDifficulty;
         gameStarted = savedGame.gameStarted;
 
-        // Show Resume button since we have an active game
-        const hasActiveGame = gameState.phase !== 'gameOver';
-        resumeButton.classList.toggle('hidden', !hasActiveGame);
+        // Validate the loaded game has territories (basic sanity check)
+        const hasValidGame = gameState.territories && gameState.territories.length > 0;
+        resumeButton.classList.toggle('hidden', !hasValidGame);
+
+        // If invalid, clear the bad save
+        if (!hasValidGame) {
+            gameState = null;
+            gameStarted = false;
+            clearSavedGame();
+        }
     } else {
-        // No saved game - hide Resume button
+        // No saved game or invalid - hide Resume button and clear any stale data
         resumeButton.classList.add('hidden');
+        if (savedGame) {
+            // There was saved data but it's not resumable, clear it
+            clearSavedGame();
+        }
     }
 
     // Show title screen first, then start screen
@@ -349,8 +360,11 @@ function showStartScreen(): void {
     startScreen.classList.remove('hidden');
     gameScreen.classList.add('hidden');
 
-    // Show resume button if there's an active game
-    const hasActiveGame = gameState !== null && gameState.phase !== 'gameOver';
+    // Show resume button if there's a valid, active game that has actually started
+    const hasActiveGame = gameState !== null &&
+                          gameState.phase !== 'gameOver' &&
+                          gameStarted &&
+                          gameState.territories.length > 0;
     resumeButton.classList.toggle('hidden', !hasActiveGame);
 
     // Sync size button selected state with currentSize
