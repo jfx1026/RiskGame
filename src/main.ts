@@ -5,6 +5,7 @@
 
 import { StatusBar } from '@capacitor/status-bar';
 import { generateMap, GeneratedMap, MapGeneratorConfig } from './mapGenerator.js';
+import { saveGame, loadGame, clearSavedGame, hasSavedGame } from './persistence.js';
 import {
     renderMap,
     addClickHandlers,
@@ -68,6 +69,16 @@ let gameGeneration = 0;  // Incremented each new game to invalidate stale async 
 let gameStarted = false;  // True only after user clicks "Start Game"
 let confettiIntervalId: number | null = null;  // Track confetti interval for cleanup
 let confettiTimeoutIds: number[] = [];  // Track confetti burst timeouts for cleanup
+
+/**
+ * Save the current game state to persistent storage
+ * Call this after any state change that should survive app termination
+ */
+function saveGameState(): void {
+    if (gameState && gameStarted) {
+        saveGame(gameState, currentSize, currentDifficulty, gameStarted);
+    }
+}
 
 // Game configuration for each map size
 interface GameConfig {
@@ -136,7 +147,7 @@ function showTitleScreen(): void {
 /**
  * Initialize the application
  */
-function init(): void {
+async function init(): Promise<void> {
     // Get DOM elements
     const svgEl = document.getElementById('map-svg');
     const statsEl = document.getElementById('stats');
@@ -279,6 +290,15 @@ function init(): void {
     // Initialize map zoom/pan for touch devices
     initMapZoom();
 
+    // Try to load a saved game
+    const savedGame = await loadGame();
+    if (savedGame) {
+        gameState = savedGame.gameState;
+        currentSize = savedGame.currentSize;
+        currentDifficulty = savedGame.currentDifficulty;
+        gameStarted = savedGame.gameStarted;
+    }
+
     // Show title screen first, then start screen
     showTitleScreen();
 }
@@ -354,6 +374,9 @@ function startGameWithSize(size: 'small' | 'medium' | 'large'): void {
     // Clean up any running confetti from previous game
     stopConfetti();
 
+    // Clear any existing saved game
+    clearSavedGame();
+
     // Reset game state for new game
     gameState = null;
     currentMap = null;
@@ -422,6 +445,44 @@ function showNewGameConfirmation(size: 'small' | 'medium' | 'large'): void {
  */
 function resumeGame(): void {
     if (gameState && gameState.phase !== 'gameOver') {
+        // Reset map zoom/pan
+        resetMapTransform();
+
+        // If resuming from a cold start, we need to rebuild the map structure
+        if (!currentMap) {
+            // Reconstruct currentMap from saved territories
+            currentMap = {
+                territories: gameState.territories,
+                config: GAME_CONFIGS[currentSize].map as MapGeneratorConfig,
+            };
+        }
+
+        // Render the map
+        renderMap(svgElement, currentMap);
+
+        // Re-add interactivity handlers
+        addClickHandlers(svgElement, currentMap.territories, handleHexClick);
+        addHoverHandlers(svgElement, currentMap.territories, handleTerritoryHover);
+
+        // Update UI
+        updateTurnIndicator();
+        updateStats();
+        clearCombatLog();
+
+        // Log that game was resumed
+        const humanTeam = gameState.teams.find(t => t.isHuman);
+        if (humanTeam) {
+            logCombatResult(`Game resumed - You are ${humanTeam.name}`);
+        }
+
+        // If it's a computer's turn, run computer turns
+        const currentTeam = getCurrentTeam(gameState);
+        if (!currentTeam.isHuman && gameStarted) {
+            isComputerPlaying = true;
+            endTurnButton.disabled = true;
+            runComputerTurns();
+        }
+
         showGameScreen();
     }
 }
@@ -564,6 +625,9 @@ function executeSurrender(): void {
         ...gameState,
         phase: 'gameOver',
     };
+
+    // Clear saved game since game is over
+    clearSavedGame();
 
     logCombatResult(`${humanTeam.name} has surrendered!`);
 
@@ -718,6 +782,9 @@ function showGameStartMessage(humanTeam: Team): void {
 
             // Randomly select who goes first
             gameState = beginGame(gameState);
+
+            // Save the initial game state
+            saveGameState();
 
             logCombatResult(`You are playing as ${humanTeam.name}`);
 
@@ -905,7 +972,11 @@ async function handleHexClick(clickedTerritory: Territory, hex: Hex, event: Mous
 
             // Check for game over
             if (gameState.phase === 'gameOver' && gameState.winner !== null) {
+                clearSavedGame();
                 showVictory(gameState.winner);
+            } else {
+                // Save game state after successful attack
+                saveGameState();
             }
 
             // Update stats
@@ -965,9 +1036,13 @@ function handleEndTurn(): void {
 
     // Check for game over
     if (gameState.phase === 'gameOver' && gameState.winner !== null) {
+        clearSavedGame();
         showVictory(gameState.winner);
         return;
     }
+
+    // Save game state after turn ends
+    saveGameState();
 
     // If next player is computer, run computer turns
     const nextTeam = getCurrentTeam(gameState);
@@ -1062,6 +1137,9 @@ function showDefeat(): void {
 
     const humanTeam = gameState.teams.find(t => t.isHuman);
     if (!humanTeam) return;
+
+    // Clear saved game since game is over
+    clearSavedGame();
 
     logCombatResult(`${humanTeam.name} has been eliminated!`);
 
@@ -1186,6 +1264,9 @@ async function executeComputerTurn(): Promise<void> {
 
     // Update stats
     updateStats();
+
+    // Save game state after computer turn
+    saveGameState();
 
     // Small delay before next player
     await delay(300);
