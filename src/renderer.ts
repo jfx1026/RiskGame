@@ -319,6 +319,7 @@ function renderTerritory(territory: Territory, hexSize: number): SVGGElement {
  * Shows filled dots (3D spheres) and empty dots (dark insets) in a hex grid
  * Large territories: 4-5-4 pattern (13 capacity)
  * Small territories: 2-3-2 pattern (7 capacity)
+ * Fill order is center-outward (center dot fills first, then radiates out)
  */
 function renderArmyDotsAtPoint(territory: Territory, center: Point, hexSize: number): SVGGElement {
     const group = createSvgElement('g') as SVGGElement;
@@ -329,7 +330,17 @@ function renderArmyDotsAtPoint(territory: Territory, center: Point, hexSize: num
     // Hex grid row patterns: [dots per row]
     // Large: 4-5-4 = MAX_ARMIES_BIG_TERRITORY total, Small: 2-3-2 = MAX_ARMIES_SMALL_TERRITORY total
     const rowPattern = territory.type === 'big' ? [4, 5, 4] : [2, 3, 2];
-    const maxCapacity = territory.type === 'big' ? MAX_ARMIES_BIG_TERRITORY : MAX_ARMIES_SMALL_TERRITORY;
+
+    // Fill order: maps army count to position index (center-outward)
+    // Large (4-5-4): positions are indexed 0-3 (row 0), 4-8 (row 1), 9-12 (row 2)
+    // Fill order based on user diagram: 1=center, then spiral outward
+    // Row 0: 8, 2, 3, 9 | Row 1: 13, 7, 1, 4, 10 | Row 2: 12, 6, 5, 11
+    const bigFillOrder = [6, 1, 2, 7, 11, 10, 5, 0, 3, 8, 12, 9, 4];
+    // Small (2-3-2): positions are indexed 0-1 (row 0), 2-4 (row 1), 5-6 (row 2)
+    // Similar center-outward pattern
+    const smallFillOrder = [3, 0, 1, 4, 6, 5, 2];
+
+    const fillOrder = territory.type === 'big' ? bigFillOrder : smallFillOrder;
 
     // Dot configuration (15% smaller than original)
     const dotRadius = hexSize * 0.094;
@@ -360,9 +371,8 @@ function renderArmyDotsAtPoint(territory: Territory, center: Point, hexSize: num
     const totalHeight = (totalRows - 1) * dotSpacingY;
     const startY = center.y - totalHeight / 2;
 
-    // Draw all dots (filled + empty capacity)
-    let dotIndex = 0;
-
+    // Build position coordinates for all dot slots
+    const positions: Point[] = [];
     for (let row = 0; row < totalRows; row++) {
         const dotsInThisRow = rowPattern[row];
         const rowWidth = (dotsInThisRow - 1) * dotSpacingX;
@@ -371,50 +381,60 @@ function renderArmyDotsAtPoint(territory: Territory, center: Point, hexSize: num
 
         for (let col = 0; col < dotsInThisRow; col++) {
             const x = startX + col * dotSpacingX;
-            const isFilled = dotIndex < armies;
+            positions.push({ x, y });
+        }
+    }
 
-            if (isFilled) {
-                // Filled dot: 3D sphere effect
-                // Shadow underneath
-                const shadow = createSvgElement('ellipse');
-                shadow.setAttribute('class', 'army-dot-shadow');
-                shadow.setAttribute('cx', String(x));
-                shadow.setAttribute('cy', String(y + dotRadius * 0.3));
-                shadow.setAttribute('rx', String(dotRadius * 0.9));
-                shadow.setAttribute('ry', String(dotRadius * 0.5));
-                shadow.setAttribute('fill', 'rgba(0, 0, 0, 0.3)');
-                group.appendChild(shadow);
+    // Create a set of filled position indices based on fill order
+    const filledPositions = new Set<number>();
+    for (let i = 0; i < armies && i < fillOrder.length; i++) {
+        filledPositions.add(fillOrder[i]);
+    }
 
-                // Main dot body
-                const dot = createSvgElement('circle');
-                dot.setAttribute('class', 'army-dot');
-                dot.setAttribute('cx', String(x));
-                dot.setAttribute('cy', String(y));
-                dot.setAttribute('r', String(dotRadius));
-                dot.setAttribute('fill', filledDotColor);
-                group.appendChild(dot);
+    // Draw all dots at their positions
+    for (let posIndex = 0; posIndex < positions.length; posIndex++) {
+        const { x, y } = positions[posIndex];
+        const isFilled = filledPositions.has(posIndex);
 
-                // Highlight (top-left shine)
-                const highlight = createSvgElement('ellipse');
-                highlight.setAttribute('class', 'army-dot-highlight');
-                highlight.setAttribute('cx', String(x - dotRadius * 0.3));
-                highlight.setAttribute('cy', String(y - dotRadius * 0.3));
-                highlight.setAttribute('rx', String(dotRadius * 0.4));
-                highlight.setAttribute('ry', String(dotRadius * 0.3));
-                highlight.setAttribute('fill', 'rgba(255, 255, 255, 0.6)');
-                group.appendChild(highlight);
-            } else {
-                // Empty dot: dark inset hole with territory-colored gradient
-                const emptyDot = createSvgElement('circle');
-                emptyDot.setAttribute('class', 'army-dot-empty');
-                emptyDot.setAttribute('cx', String(x));
-                emptyDot.setAttribute('cy', String(y));
-                emptyDot.setAttribute('r', String(dotRadius));
-                emptyDot.setAttribute('fill', `url(#${gradientId})`);
-                group.appendChild(emptyDot);
-            }
+        if (isFilled) {
+            // Filled dot: 3D sphere effect
+            // Shadow underneath
+            const shadow = createSvgElement('ellipse');
+            shadow.setAttribute('class', 'army-dot-shadow');
+            shadow.setAttribute('cx', String(x));
+            shadow.setAttribute('cy', String(y + dotRadius * 0.3));
+            shadow.setAttribute('rx', String(dotRadius * 0.9));
+            shadow.setAttribute('ry', String(dotRadius * 0.5));
+            shadow.setAttribute('fill', 'rgba(0, 0, 0, 0.3)');
+            group.appendChild(shadow);
 
-            dotIndex++;
+            // Main dot body
+            const dot = createSvgElement('circle');
+            dot.setAttribute('class', 'army-dot');
+            dot.setAttribute('cx', String(x));
+            dot.setAttribute('cy', String(y));
+            dot.setAttribute('r', String(dotRadius));
+            dot.setAttribute('fill', filledDotColor);
+            group.appendChild(dot);
+
+            // Highlight (top-left shine)
+            const highlight = createSvgElement('ellipse');
+            highlight.setAttribute('class', 'army-dot-highlight');
+            highlight.setAttribute('cx', String(x - dotRadius * 0.3));
+            highlight.setAttribute('cy', String(y - dotRadius * 0.3));
+            highlight.setAttribute('rx', String(dotRadius * 0.4));
+            highlight.setAttribute('ry', String(dotRadius * 0.3));
+            highlight.setAttribute('fill', 'rgba(255, 255, 255, 0.6)');
+            group.appendChild(highlight);
+        } else {
+            // Empty dot: dark inset hole with territory-colored gradient
+            const emptyDot = createSvgElement('circle');
+            emptyDot.setAttribute('class', 'army-dot-empty');
+            emptyDot.setAttribute('cx', String(x));
+            emptyDot.setAttribute('cy', String(y));
+            emptyDot.setAttribute('r', String(dotRadius));
+            emptyDot.setAttribute('fill', `url(#${gradientId})`);
+            group.appendChild(emptyDot);
         }
     }
 
