@@ -1157,7 +1157,7 @@ async function runComputerTurns(): Promise<void> {
         updateTurnIndicatorForComputer();
 
         // Execute computer's turn
-        await executeComputerTurn();
+        await executeComputerTurn(thisGameGeneration);
 
         // Check again if game changed during async execution
         if (gameGeneration !== thisGameGeneration) {
@@ -1225,8 +1225,9 @@ function showDefeat(): void {
 
 /**
  * Execute a single computer player's turn
+ * @param expectedGeneration - The game generation when this turn started, used to detect if game was cancelled
  */
-async function executeComputerTurn(): Promise<void> {
+async function executeComputerTurn(expectedGeneration: number): Promise<void> {
     if (!gameState) return;
 
     const currentTeam = getCurrentTeam(gameState);
@@ -1234,10 +1235,16 @@ async function executeComputerTurn(): Promise<void> {
     // Add a small delay before starting attacks
     await delay(500);
 
+    // Check if game was cancelled during delay
+    if (gameGeneration !== expectedGeneration) return;
+
     let attacksThisTurn = 0;
 
     // Attack loop
     while (shouldContinueAttacking(gameState, attacksThisTurn, currentDifficulty)) {
+        // Check if game was cancelled
+        if (gameGeneration !== expectedGeneration) return;
+
         const attack = findBestAttack(gameState, currentDifficulty);
         if (!attack) break;
 
@@ -1252,6 +1259,9 @@ async function executeComputerTurn(): Promise<void> {
 
         // Small delay to show selection
         await delay(300);
+
+        // Check if game was cancelled during delay
+        if (gameGeneration !== expectedGeneration) return;
 
         // Select the source territory in game state (required for attemptAttack)
         gameState = selectTerritory(gameState, source.id);
@@ -1272,6 +1282,9 @@ async function executeComputerTurn(): Promise<void> {
             // Show dice animation (non-blocking) and combat animation in parallel
             showDiceAnimation(result, attackerColor, defenderColor);
             await showCombatAnimation(svgElement, result, source.id, target.id);
+
+            // Check if game was cancelled during animation
+            if (gameGeneration !== expectedGeneration) return;
 
             // Update territory displays
             const updatedSource = gameState.territories.find(t => t.id === source.id);
@@ -1294,7 +1307,13 @@ async function executeComputerTurn(): Promise<void> {
 
         // Delay between attacks for visibility
         await delay(400);
+
+        // Check if game was cancelled during delay
+        if (gameGeneration !== expectedGeneration) return;
     }
+
+    // Check if game was cancelled before ending turn
+    if (gameGeneration !== expectedGeneration) return;
 
     // End computer's turn
     const previousTeam = getCurrentTeam(gameState);
@@ -1314,6 +1333,9 @@ async function executeComputerTurn(): Promise<void> {
 
     // Update stats
     updateStats();
+
+    // Check if game was cancelled before saving
+    if (gameGeneration !== expectedGeneration) return;
 
     // Save game state after computer turn
     saveGameState();
