@@ -1294,11 +1294,16 @@ function createDieElement(value: number): HTMLDivElement {
  */
 // Track dice animation timeouts so they can be cancelled
 let diceAnimationTimeouts: number[] = [];
+// Generation counter to invalidate in-progress animations
+let diceAnimationGeneration = 0;
 
 /**
  * Cancel any pending dice animations
  */
 export function cancelDiceAnimation(): void {
+    // Increment generation to invalidate any in-progress animation callbacks
+    diceAnimationGeneration++;
+
     for (const timeoutId of diceAnimationTimeouts) {
         clearTimeout(timeoutId);
     }
@@ -1402,6 +1407,9 @@ export function showDiceAnimation(
         // Clear any pending animations from previous calls
         cancelDiceAnimation();
 
+        // Capture current generation to detect if animation is cancelled
+        const thisGeneration = diceAnimationGeneration;
+
         // Clear previous state
         attackerDiceContainer.innerHTML = '';
         defenderDiceContainer.innerHTML = '';
@@ -1445,6 +1453,12 @@ export function showDiceAnimation(
 
         // Step 2: After brief pause, highlight winners/losers
         const timeout1 = window.setTimeout(() => {
+            // Check if animation was cancelled
+            if (diceAnimationGeneration !== thisGeneration) {
+                resolve();
+                return;
+            }
+
             // Mark overall winner with glow
             if (result.attackerWins) {
                 attackerDiceContainer.classList.add('winner');
@@ -1467,10 +1481,22 @@ export function showDiceAnimation(
 
             // Step 3: After showing results, fade out
             const timeout2 = window.setTimeout(() => {
+                // Check if animation was cancelled
+                if (diceAnimationGeneration !== thisGeneration) {
+                    resolve();
+                    return;
+                }
+
                 diceBar.classList.add('fading');
 
                 // Step 4: After fade completes, hide and resolve
                 const timeout3 = window.setTimeout(() => {
+                    // Check if animation was cancelled
+                    if (diceAnimationGeneration !== thisGeneration) {
+                        resolve();
+                        return;
+                    }
+
                     diceBar.classList.remove('visible', 'fading');
                     diceBar.setAttribute('aria-hidden', 'true');
                     resolve();
