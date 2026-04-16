@@ -1063,7 +1063,7 @@ function handleEndTurn(): void {
     const resupplyAmount = calculateResupply(gameState, currentDifficulty);
 
     // End the turn
-    gameState = endTurn(gameState);
+    gameState = endTurn(gameState, currentDifficulty);
 
     // Log resupply
     logCombatResult(`${previousTeam.name} received ${resupplyAmount} reinforcements`);
@@ -1322,7 +1322,7 @@ async function executeComputerTurn(expectedGeneration: number): Promise<void> {
     const previousTeam = getCurrentTeam(gameState);
     const resupplyAmount = calculateResupply(gameState, currentDifficulty);
 
-    gameState = endTurn(gameState);
+    gameState = endTurn(gameState, currentDifficulty);
 
     // Log resupply
     logCombatResult(`${previousTeam.name} received ${resupplyAmount} reinforcements`);

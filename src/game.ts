@@ -412,15 +412,16 @@ export function attemptAttack(state: GameState, targetId: number, difficulty?: D
 /**
  * End the current player's turn
  * Applies resupply and moves to next player
+ * @param difficulty - Optional difficulty for strategic reinforcement placement
  */
-export function endTurn(state: GameState): GameState {
+export function endTurn(state: GameState, difficulty?: Difficulty): GameState {
     // Skip if game is over
     if (state.phase === 'gameOver') {
         return state;
     }
 
     // Apply resupply
-    let newState = applyResupply(state);
+    let newState = applyResupply(state, difficulty);
 
     // Move to next team that still has territories
     let nextTeamIndex = (state.currentTeamIndex + 1) % state.teams.length;
@@ -531,11 +532,25 @@ export function findLargestContiguousGroup(territories: Territory[], teamId: num
 }
 
 /**
- * Apply resupply to the current team
- * New armies are distributed randomly across owned territories
+ * Check if a territory is on the front line (has at least one enemy neighbor)
  */
-export function applyResupply(state: GameState): GameState {
-    const resupplyAmount = calculateResupply(state);
+function isFrontLine(territory: Territory, allTerritories: Territory[]): boolean {
+    for (const neighborId of territory.neighbors) {
+        const neighbor = allTerritories.find(t => t.id === neighborId);
+        if (neighbor && neighbor.owner !== territory.owner) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Apply resupply to the current team
+ * New armies are distributed across owned territories
+ * @param difficulty - Optional difficulty for strategic placement
+ */
+export function applyResupply(state: GameState, difficulty?: Difficulty): GameState {
+    const resupplyAmount = calculateResupply(state, difficulty);
     const currentTeam = getCurrentTeam(state);
     const teamTerritories = state.territories.filter(t => t.owner === currentTeam.id);
 
@@ -546,6 +561,13 @@ export function applyResupply(state: GameState): GameState {
     // Create a copy of territories to modify
     const newTerritories = state.territories.map(t => ({ ...t }));
     const teamTerritoryIds = new Set(currentTeam.territories);
+
+    // Determine if we should use strategic placement:
+    // - Unfair mode: AI prioritizes front-line territories
+    // - Easy mode: Human prioritizes front-line territories
+    const useStrategicPlacement =
+        (difficulty === 'unfair' && !currentTeam.isHuman) ||
+        (difficulty === 'easy' && currentTeam.isHuman);
 
     let remaining = resupplyAmount;
     while (remaining > 0) {
@@ -558,9 +580,27 @@ export function applyResupply(state: GameState): GameState {
 
         if (eligible.length === 0) break;
 
-        // Distribute to a random eligible territory
-        const randomIndex = Math.floor(Math.random() * eligible.length);
-        eligible[randomIndex].armies++;
+        let selectedTerritory: Territory;
+
+        if (useStrategicPlacement) {
+            // Prioritize front-line territories
+            const frontLine = eligible.filter(t => isFrontLine(t, newTerritories));
+            if (frontLine.length > 0) {
+                // Pick random front-line territory
+                const randomIndex = Math.floor(Math.random() * frontLine.length);
+                selectedTerritory = frontLine[randomIndex];
+            } else {
+                // No front-line territories available, fall back to random
+                const randomIndex = Math.floor(Math.random() * eligible.length);
+                selectedTerritory = eligible[randomIndex];
+            }
+        } else {
+            // Default: distribute randomly
+            const randomIndex = Math.floor(Math.random() * eligible.length);
+            selectedTerritory = eligible[randomIndex];
+        }
+
+        selectedTerritory.armies++;
         remaining--;
     }
 
