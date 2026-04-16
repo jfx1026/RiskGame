@@ -16,7 +16,7 @@ export interface AttackDecision {
 /**
  * Difficulty levels for AI opponents
  */
-export type Difficulty = 'easy' | 'medium' | 'hard';
+export type Difficulty = 'easy' | 'medium' | 'hard' | 'unfair';
 
 /**
  * Difficulty configuration - affects AI decision quality
@@ -39,6 +39,12 @@ const DIFFICULTY_CONFIG = {
         thresholdAdjustment: -5,   // Lower threshold = attacks more
         maxAttacksMultiplier: 1.5, // More attacks
         randomNoise: 0.02,         // 2% noise (very consistent)
+    },
+    unfair: {
+        scoreMultiplier: 1.7,      // Even sharper scoring than hard
+        thresholdAdjustment: -8,   // Even lower threshold = attacks more aggressively
+        maxAttacksMultiplier: 1.9, // Many more attacks
+        randomNoise: 0.01,         // 1% noise (extremely consistent)
     },
 };
 
@@ -186,7 +192,7 @@ function calculateAttackScore(
     }
 
     // Apply hard mode bonuses (additional strategic considerations)
-    if (difficulty === 'hard') {
+    if (difficulty === 'hard' || difficulty === 'unfair') {
         score = applyHardModeBonus(score, source, target, state, teamId);
     }
 

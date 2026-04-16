@@ -971,7 +971,7 @@ async function handleHexClick(clickedTerritory: Territory, hex: Hex, event: Mous
             const attackerColor = sourceTerritory?.color || '#888';
             const defenderColor = territory.color;
 
-            gameState = attemptAttack(gameState, territory.id);
+            gameState = attemptAttack(gameState, territory.id, currentDifficulty);
 
             // Show combat result
             if (gameState.lastCombatResult && sourceTerritory) {
@@ -1060,7 +1060,7 @@ function handleEndTurn(): void {
     }
 
     const previousTeam = currentTeam;
-    const resupplyAmount = calculateResupply(gameState);
+    const resupplyAmount = calculateResupply(gameState, currentDifficulty);
 
     // End the turn
     gameState = endTurn(gameState);
@@ -1270,8 +1270,8 @@ async function executeComputerTurn(expectedGeneration: number): Promise<void> {
         const attackerColor = source.color;
         const defenderColor = target.color;
 
-        // Execute the attack
-        gameState = attemptAttack(gameState, target.id);
+        // Execute the attack (pass difficulty for AI dice boost on Unfair)
+        gameState = attemptAttack(gameState, target.id, currentDifficulty);
         attacksThisTurn++;
 
         // Check if game was cancelled before showing results
@@ -1320,7 +1320,7 @@ async function executeComputerTurn(expectedGeneration: number): Promise<void> {
 
     // End computer's turn
     const previousTeam = getCurrentTeam(gameState);
-    const resupplyAmount = calculateResupply(gameState);
+    const resupplyAmount = calculateResupply(gameState, currentDifficulty);
 
     gameState = endTurn(gameState);
 

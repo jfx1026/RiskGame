@@ -6,6 +6,7 @@ import { Territory, TerritoryType } from './territory.js';
 import { TERRITORY_COLORS } from './colors.js';
 import { GeneratedMap } from './mapGenerator.js';
 import { CombatResult, executeAttack, canAttack, getValidAttackTargets } from './combat.js';
+import { Difficulty } from './ai.js';
 
 // Army capacity limits per territory type
 export const MAX_ARMIES_BIG_TERRITORY = 13;
@@ -327,8 +328,9 @@ export function deselectTerritory(state: GameState): GameState {
 /**
  * Attempt an attack from the selected territory to the target
  * Returns the new game state after combat
+ * @param difficulty - Optional difficulty level for AI dice boost
  */
-export function attemptAttack(state: GameState, targetId: number): GameState {
+export function attemptAttack(state: GameState, targetId: number, difficulty?: Difficulty): GameState {
     // Must have a selected territory
     if (state.selectedTerritory === null) {
         return state;
@@ -349,8 +351,12 @@ export function attemptAttack(state: GameState, targetId: number): GameState {
     // Track the defender's team before the attack
     const defenderId = target.owner;
 
+    // Determine if attacker is AI (for unfair difficulty dice boost)
+    const currentTeam = getCurrentTeam(state);
+    const isAIAttacker = !currentTeam.isHuman;
+
     // Execute the attack
-    const combatResult = executeAttack(source, target, state.teams);
+    const combatResult = executeAttack(source, target, state.teams, difficulty, isAIAttacker);
 
     // Check for victory
     const winner = checkVictory(state);
@@ -448,8 +454,9 @@ export function endTurn(state: GameState): GameState {
  * Calculate resupply amount for the current team
  * Formula: (Largest contiguous group) + (Total territories / 4)
  * Penalty: If no territories captured this turn, get half (rounded down)
+ * @param difficulty - Optional difficulty level for AI bonus
  */
-export function calculateResupply(state: GameState): number {
+export function calculateResupply(state: GameState, difficulty?: Difficulty): number {
     const currentTeam = getCurrentTeam(state);
     const totalTerritories = state.territories.filter(t => t.owner === currentTeam.id).length;
     const largestGroup = findLargestContiguousGroup(state.territories, currentTeam.id);
@@ -468,6 +475,11 @@ export function calculateResupply(state: GameState): number {
     // Cap reinforcements to prevent late-game stalemates
     const MAX_REINFORCEMENTS = 12;
     reinforcements = Math.min(reinforcements, MAX_REINFORCEMENTS);
+
+    // Unfair difficulty: AI players get +2 bonus reinforcements (applied after cap)
+    if (difficulty === 'unfair' && !currentTeam.isHuman) {
+        reinforcements += 2;
+    }
 
     // Minimum of 1 reinforcement (if they have any territories)
     return totalTerritories > 0 ? Math.max(1, reinforcements) : 0;
